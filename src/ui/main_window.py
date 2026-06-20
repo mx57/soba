@@ -26,6 +26,8 @@ class PetWindow(QMainWindow):
         self.animation_manager = AnimationManager(self.pet_label)
         self.animation_manager.play_state("idle")
 
+        self.last_state_before_drag = "idle"
+
         self.drag_position = QPoint()
         self.is_dragging = False
         self.original_size = QSize(100, 100)
@@ -37,6 +39,8 @@ class PetWindow(QMainWindow):
         if event.button() == Qt.LeftButton:
             self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             self.is_dragging = True
+            self.last_state_before_drag = self.animation_manager.current_state
+            self.animation_manager.play_state("stretching")
             event.accept()
 
     def mouseMoveEvent(self, event):
@@ -59,6 +63,7 @@ class PetWindow(QMainWindow):
         self.is_dragging = False
         self.resize(self.original_size) # Возвращаем размер
         self.animation_manager.update_size(self.size())
+        self.animation_manager.play_state(self.last_state_before_drag)
 
     def closeEvent(self, event):
         self.closed.emit()

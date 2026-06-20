@@ -68,6 +68,5 @@ class InputManager(QObject):
         dist = ((x - (pet_pos.x() + 50))**2 + (y - (pet_pos.y() + 50))**2)**0.5
 
         if dist < 60:
-            if self.window.animation_manager.current_state != "playing":
-                 # self.window.animation_manager.play_state("playing")
-                 pass
+            if self.window.animation_manager.current_state not in ["playing", "hunting"]:
+                 self.window.animation_manager.play_state("hunting")
