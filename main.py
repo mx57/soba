@@ -22,8 +22,8 @@ def main():
     sound_manager = SoundManager(config)
 
     timer_system = TimerSystem(config)
-    timer_system.stretch_reminder.connect(lambda: tray.show_message("Пора размяться!", "Котик напоминает: сделай перерыв и потянись!"))
-    timer_system.pomodoro_finished.connect(lambda mode: tray.show_message("Pomodoro", f"Время {('работы' if mode=='work' else 'отдыха')} окончено!"))
+    timer_system.stretch_reminder.connect(lambda: window.show_message("Пора размяться! 🐾"))
+    timer_system.pomodoro_finished.connect(lambda mode: window.show_message(f"Pomodoro: {('отдых' if mode=='work' else 'работа')}! 🍎"))
     timer_system.start_stretch_timer()
 
     input_manager = InputManager(window)

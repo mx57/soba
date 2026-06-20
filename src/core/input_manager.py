@@ -42,6 +42,10 @@ class InputManager(QObject):
         self.last_key_time = 0
         self.typing_count = 0
         self.typing_speed_threshold = 5 # Нажатий в секунду для перехода в режим kneading/working
+        self.overheat_threshold = 12 # KPS для режима перегрева
+
+        self.last_mouse_time = 0
+        self.last_mouse_pos = (0, 0)
 
         self.monitor.key_pressed.connect(self.handle_key)
         self.monitor.mouse_moved.connect(self.handle_mouse)
@@ -51,22 +55,46 @@ class InputManager(QObject):
 
     def handle_key(self):
         now = time.time()
-        self.typing_count += 1
+        dt = now - self.last_key_time
 
-        if now - self.last_key_time > 2:
+        if dt > 1.0:
+            kps = self.typing_count / dt if dt > 0 else 0
             self.typing_count = 1
+
+            if kps > self.overheat_threshold:
+                if self.window.animation_manager.current_state != "overheat":
+                    self.window.animation_manager.play_state("overheat")
+            elif kps > self.typing_speed_threshold:
+                if self.window.animation_manager.current_state != "working":
+                    self.window.animation_manager.play_state("working")
+        else:
+            self.typing_count += 1
 
         self.last_key_time = now
 
-        if self.window.animation_manager.current_state != "working":
-             self.window.animation_manager.play_state("working")
-
     def handle_mouse(self, x, y):
-        # Здесь можно реализовать "охоту" или слежение глазами
-        # Пока просто проверяем расстояние до окна для реакции (поглаживание)
+        now = time.time()
+        # Вычисляем скорость мыши
+        dt = now - self.last_mouse_time
+        if dt > 0:
+            dx = x - self.last_mouse_pos[0]
+            dy = y - self.last_mouse_pos[1]
+            speed = (dx**2 + dy**2)**0.5 / dt
+
+            # Если мышь движется быстро, активируем охоту
+            if speed > 1500: # px/sec
+                if self.window.animation_manager.current_state != "hunting":
+                    self.window.animation_manager.play_state("hunting")
+                    self.window.start_hunting(x, y)
+
+        self.last_mouse_pos = (x, y)
+        self.last_mouse_time = now
+
+        # Проверка "поглаживания"
         pet_pos = self.window.pos()
         dist = ((x - (pet_pos.x() + 50))**2 + (y - (pet_pos.y() + 50))**2)**0.5
 
         if dist < 60:
-            if self.window.animation_manager.current_state not in ["playing", "hunting"]:
-                 self.window.animation_manager.play_state("hunting")
+            if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
+                 self.window.animation_manager.play_state("playing")
+                 self.window.sound_manager.play_sound("purr")
