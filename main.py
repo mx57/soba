@@ -17,14 +17,17 @@ def main():
     db.log_event("app_start", "Приложение запущено")
 
     window = PetWindow(config)
-    tray = TrayMenu(window)
 
     sound_manager = SoundManager(config)
 
     timer_system = TimerSystem(config)
+    window.set_timer_system(timer_system)
+
     timer_system.stretch_reminder.connect(lambda: window.show_message("Пора размяться! 🐾"))
     timer_system.pomodoro_finished.connect(lambda mode: window.show_message(f"Pomodoro: {('отдых' if mode=='work' else 'работа')}! 🍎"))
     timer_system.start_stretch_timer()
+
+    tray = TrayMenu(window)
 
     input_manager = InputManager(window)
     input_manager.start()

@@ -60,7 +60,10 @@ class PetWindow(QMainWindow):
 
         self.is_hidden = False
         self.original_pos = self.pos()
+        self.timer_system = None
 
+    def set_timer_system(self, timer_system):
+        self.timer_system = timer_system
 
     def toggle_peek_mode(self):
         """Уход котика за край экрана и возвращение"""
