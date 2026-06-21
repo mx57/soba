@@ -67,6 +67,10 @@ class InputManager(QObject):
             elif kps > self.typing_speed_threshold:
                 if self.window.animation_manager.current_state != "working":
                     self.window.animation_manager.play_state("working")
+            else:
+                # Если скорость упала ниже порога, возвращаемся в idle
+                if self.window.animation_manager.current_state in ["working", "overheat"]:
+                    self.window.animation_manager.play_state("idle")
         else:
             self.typing_count += 1
 
@@ -86,6 +90,10 @@ class InputManager(QObject):
                 if self.window.animation_manager.current_state != "hunting":
                     self.window.animation_manager.play_state("hunting")
                     self.window.start_hunting(x, y)
+            elif speed < 100:
+                # Если мышь замерла, выходим из охоты через пару секунд
+                if self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
+                    self.window.animation_manager.play_state("idle")
 
         self.last_mouse_pos = (x, y)
         self.last_mouse_time = now

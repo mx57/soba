@@ -10,7 +10,8 @@ class ConfigManager:
         "pomodoro_break": 5,
         "stretch_interval": 30,
         "volume": 70,
-        "language": "ru"
+        "language": "ru",
+        "skin": "default"
     }
 
     def __init__(self, config_path="settings.json"):

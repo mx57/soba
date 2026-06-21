@@ -38,6 +38,25 @@ class TrayMenu(QObject):
 
         self.menu.addSeparator()
 
+        # Выбор скина
+        skin_menu = QMenu("Выбрать окрас", self.menu)
+        skins = {
+            "Стандартный": "default",
+            "Рыжий": "orange",
+            "Сиамский": "siamese",
+            "Бежевый": "ginger",
+            "Розовый": "pink",
+            "Белый": "white",
+            "Серый": "gray",
+            "Трехцветный": "calico",
+            "Черный": "black"
+        }
+        for name, skin_id in skins.items():
+            action = QAction(name, self)
+            action.triggered.connect(lambda checked=False, sid=skin_id: self.window.animation_manager.set_skin(sid))
+            skin_menu.addAction(action)
+        self.menu.addMenu(skin_menu)
+
         # Настройки
         settings_action = QAction("Настройки", self)
         # settings_action.triggered.connect(self.show_settings)
