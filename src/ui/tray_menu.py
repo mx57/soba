@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import QObject
 from src.utils.paths import TRAY_ICON_PATH, get_animation_path
+from src.ui.settings_dialog import SettingsDialog
 
 class TrayMenu(QObject):
     def __init__(self, pet_window):
@@ -76,9 +77,16 @@ class TrayMenu(QObject):
 
         self.menu.addSeparator()
 
+        # Peek Mode (Прятки)
+        peek_action = QAction("Спрятать котика", self)
+        peek_action.triggered.connect(self.window.toggle_peek_mode)
+        self.menu.addAction(peek_action)
+
+        self.menu.addSeparator()
+
         # Настройки
         settings_action = QAction("Настройки", self)
-        # settings_action.triggered.connect(self.show_settings)
+        settings_action.triggered.connect(self.show_settings)
         self.menu.addAction(settings_action)
 
         self.menu.addSeparator()
@@ -90,3 +98,10 @@ class TrayMenu(QObject):
 
     def show_message(self, title, message):
         self.tray_icon.showMessage(title, message, QSystemTrayIcon.Information, 5000)
+
+    def show_settings(self):
+        dialog = SettingsDialog(self.window.config, self.window)
+        if dialog.exec():
+            # Обновляем скин в реальном времени
+            self.window.animation_manager.set_skin(self.window.config.get("skin"))
+            self.window.show_message("Настройки сохранены! 💾")

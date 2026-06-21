@@ -58,6 +58,27 @@ class PetWindow(QMainWindow):
         self.pos_animation = QPropertyAnimation(self, b"pos")
         self.pos_animation.setEasingCurve(QEasingCurve.OutQuad)
 
+        self.is_hidden = False
+        self.original_pos = self.pos()
+
+
+    def toggle_peek_mode(self):
+        """Уход котика за край экрана и возвращение"""
+        screen = self.screen().geometry()
+        self.pos_animation.stop()
+        self.pos_animation.setDuration(1000)
+
+        if not self.is_hidden:
+            self.original_pos = self.pos()
+            # Прячемся за правый край
+            dest = QPoint(screen.width() - 20, self.y())
+            self.is_hidden = True
+        else:
+            dest = self.original_pos
+            self.is_hidden = False
+
+        self.pos_animation.setEndValue(dest)
+        self.pos_animation.start()
 
     def start_hunting(self, target_x, target_y):
         """Плавное перемещение котика к курсору"""

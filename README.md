@@ -1,64 +1,54 @@
 # 🐾 Десктопный Котик (Desktop Pet Cat)
 
-![Preview](assets/screenshots/preview.png)
+![Project Logo](assets/icons/tray_icon.png)
 
-[English version below](#english-version)
+Интерактивный векторный питомец для вашего рабочего стола, вдохновленный comnyang.com.
 
-## 🇷🇺 Описание проекта
+## 🚀 Что нового: SVG-революция и расширенные функции
 
-**Десктопный Котик** — это интерактивный виртуальный питомец для Windows, вдохновленный проектом comnyang.com. Он живет на вашем рабочем столе, следует за курсором, реагирует на печать и помогает оставаться продуктивным, напоминая о перерывах.
+Мы полностью переработали графическое ядро приложения! Теперь Котик — это не просто набор GIF-анимаций, а полноценный **процедурный векторный движок**.
 
-### ✨ Основные функции
-- **Всегда поверх (Always-on-top)**: Котик никогда не теряется за открытыми окнами.
-- **Прозрачное окно**: Безрамочный интерфейс, который идеально вписывается в рабочий стол.
-- **Mochi Drag**: Уникальный эффект растягивания питомца при перетаскивании мышью.
-- **Реакция на клавиатуру**: Котик начинает «работать», когда вы активно печатаете.
-- **Системный трей**: Удобное меню для кормления, игр и настройки питомца.
-- **Таймеры продуктивности**:
-  - **Pomodoro**: Настраиваемые циклы работы и отдыха.
-  - **Напоминание о растяжке**: Уведомления каждые 30 минут, чтобы вы не забывали двигаться.
-- **Локальное хранение**: Все настройки (`settings.json`) и история активности (`activity.db`) хранятся только на вашем компьютере.
-- **Полный Offline**: Приложение не требует интернета и не передает данные.
+### ✨ Основные преимущества
+- **Бесконечное масштабирование**: Благодаря формату SVG, котик выглядит идеально четко на любом разрешении экрана.
+- **Процедурные анимации**: Движения котика (дыхание, прыжки, работа лапками) вычисляются математически в реальном времени. Это делает анимацию плавной и органичной.
+- **8 уникальных скинов**: Переключайтесь между окрасами (Рыжий, Сиамский, Черный и др.) через меню настроек.
+- **Живая реакция**: Питомец следит взглядом за вашим курсором и реагирует на скорость вашей печати.
 
-### 🛠 Установка и запуск
-1. Убедитесь, что у вас установлен Python 3.10+.
-2. Установите зависимости:
+### 🛠 Ключевые функции
+- **Mochi Drag**: Котик растягивается и сжимается при перетаскивании. Если его встряхнуть — он начнет дрожать!
+- **Mouse Hunt**: Питомец пускается в погоню, если вы быстро двигаете мышкой.
+- **Таймеры продуктивности**: Встроенный Pomodoro и напоминания о разминке с уведомлениями прямо над котиком.
+- **Peek Mode (Прятки)**: Котик может прятаться за край экрана, чтобы не мешать вам.
+- **Звуковые эффекты**: Мурлыканье при поглаживании и задорное мяуканье при важных событиях.
+
+## 🎨 Демонстрация графики
+
+| Окрас | Превью | Описание |
+|---|---|---|
+| **Orange** | ![Orange](assets/animations/svg_skins/cat_orange.svg) | Классический рыжий проказник |
+| **Siamese** | ![Siamese](assets/animations/svg_skins/cat_siamese.svg) | Элегантный сиамский котик |
+| **Black** | ![Black](assets/animations/svg_skins/cat_black.svg) | Грациозная черная пантера |
+| **Calico** | ![Calico](assets/animations/svg_skins/cat_calico.svg) | Уютный трехцветный котик |
+
+*Примечание: В приложении доступно 8 различных окрасов.*
+
+## ⚙️ Установка и использование
+
+1. Установите Python 3.10+.
+2. Установите необходимые зависимости:
    ```bash
    pip install -r requirements.txt
    ```
-3. Запустите приложение:
+3. Запустите программу:
    ```bash
    python main.py
    ```
 
----
-
-## 🇺🇸 English Version
-
-**Desktop Pet Cat** is an interactive virtual companion for Windows, inspired by comnyang.com. It lives on your desktop, reacts to your keystrokes, and helps you stay productive by reminding you to take breaks.
-
-### ✨ Key Features
-- **Always-on-top**: The pet is always visible over other windows.
-- **Transparent Window**: A frameless UI that blends perfectly with your workspace.
-- **Mochi Drag**: A unique stretching effect when dragging the pet with your mouse.
-- **Input Reaction**: The pet enters "working" mode when you start typing.
-- **System Tray**: A convenient menu for feeding, playing, and managing settings.
-- **Productivity Timers**:
-  - **Pomodoro**: Customizable work and break cycles.
-  - **Stretch Reminder**: Notifications every 30 minutes to keep you moving.
-- **Local Storage**: All settings (`settings.json`) and activity logs (`activity.db`) are stored locally on your machine.
-- **Fully Offline**: No internet connection required; your data stays private.
-
-### 🛠 Installation and Quick Start
-1. Ensure you have Python 3.10+ installed.
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Run the application:
-   ```bash
-   python main.py
-   ```
+## 📝 Управление
+- **ЛКМ (зажать)**: Перетаскивание (Mochi Drag).
+- **ПКМ (на иконку в трее)**: Настройки, выбор скина, таймеры.
+- **Быстрая печать**: Котик переходит в режим работы или перегрева.
+- **Движение мыши**: Котик следит за курсором или охотится на него.
 
 ---
-*Создано с любовью для продуктивных кошатников.*
+*Создано с любовью для продуктивных кошатников. 🐾*
