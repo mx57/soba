@@ -58,24 +58,6 @@ class PetWindow(QMainWindow):
         self.pos_animation = QPropertyAnimation(self, b"pos")
         self.pos_animation.setEasingCurve(QEasingCurve.OutQuad)
 
-        # Эффект дыхания (для статических скинов)
-        self.breath_timer = QTimer(self)
-        self.breath_timer.timeout.connect(self._do_breath)
-        self.breath_timer.start(1000)
-        self.breath_direction = 1
-        self.breath_offset = 0
-
-    def _do_breath(self):
-        if self.animation_manager.current_state == "idle" and self.animation_manager.skin != "default":
-            self.breath_offset += self.breath_direction * 2
-            if abs(self.breath_offset) > 4:
-                self.breath_direction *= -1
-
-            # Слегка меняем размер лейбла для эффекта дыхания
-            new_size = self.original_size + QSize(0, self.breath_offset)
-            self.pet_label.setFixedSize(new_size)
-        else:
-            self.pet_label.setFixedSize(self.size())
 
     def start_hunting(self, target_x, target_y):
         """Плавное перемещение котика к курсору"""

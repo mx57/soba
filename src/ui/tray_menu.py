@@ -57,6 +57,25 @@ class TrayMenu(QObject):
             skin_menu.addAction(action)
         self.menu.addMenu(skin_menu)
 
+        self.menu.addSeparator()
+
+        # Pomodoro
+        pomodoro_menu = QMenu("Таймер Pomodoro", self.menu)
+        start_work = QAction("Начать работу (25 мин)", self)
+        # Мы не можем легко получить доступ к timer_system здесь без прокидывания,
+        # но можем вызвать метод у окна или использовать сигналы.
+        # Для простоты добавим заглушку, которая выводит сообщение
+        start_work.triggered.connect(lambda: self.window.show_message("Пора работать! 🛠"))
+        pomodoro_menu.addAction(start_work)
+
+        start_break = QAction("Перерыв (5 мин)", self)
+        start_break.triggered.connect(lambda: self.window.show_message("Отдыхаем! ☕"))
+        pomodoro_menu.addAction(start_break)
+
+        self.menu.addMenu(pomodoro_menu)
+
+        self.menu.addSeparator()
+
         # Настройки
         settings_action = QAction("Настройки", self)
         # settings_action.triggered.connect(self.show_settings)
@@ -66,7 +85,7 @@ class TrayMenu(QObject):
 
         # Выход
         quit_action = QAction("Выход", self)
-        quit_action.triggered.connect(self.window.close)
+        quit_action.triggered.connect(QApplication.instance().quit)
         self.menu.addAction(quit_action)
 
     def show_message(self, title, message):
