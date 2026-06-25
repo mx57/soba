@@ -30,6 +30,7 @@ class TestUtils(unittest.TestCase):
         recent = db.get_recent_activity(1)
         self.assertEqual(len(recent), 1)
         self.assertEqual(recent[0][2], "test_event")
+        db.close()
 
 if __name__ == '__main__':
     unittest.main()

@@ -35,6 +35,7 @@ def main():
     # Cleanup on close
     window.closed.connect(lambda: input_manager.monitor.stop())
     window.closed.connect(lambda: input_manager.monitor.wait())
+    window.closed.connect(db.close)
 
     window.show()
 
