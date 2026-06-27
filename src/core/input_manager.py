@@ -83,15 +83,19 @@ class InputManager(QObject):
         if dt > 0:
             dx = x - self.last_mouse_pos[0]
             dy = y - self.last_mouse_pos[1]
-            speed = (dx**2 + dy**2)**0.5 / dt
+            # Оптимизация: используем квадрат расстояния для сравнения скоростей,
+            # чтобы избежать дорогостоящего вычисления корня (sqrt/**0.5) и возведения в степень (**2)
+            dist_sq = dx * dx + dy * dy
 
-            # Если мышь движется быстро, активируем охоту
-            if speed > 1500: # px/sec
+            # Если мышь движется быстро, активируем охоту (1500 px/sec)
+            # speed > 1500  =>  sqrt(dist_sq)/dt > 1500  =>  dist_sq > (1500 * dt)**2
+            threshold_fast = 1500 * dt
+            if dist_sq > threshold_fast * threshold_fast:
                 if self.window.animation_manager.current_state != "hunting":
                     self.window.animation_manager.play_state("hunting")
                     self.window.start_hunting(x, y)
-            elif speed < 100:
-                # Если мышь замерла, выходим из охоты через пару секунд
+            elif dist_sq < (100 * dt) * (100 * dt):
+                # Если мышь замерла (speed < 100 px/sec), выходим из охоты через пару секунд
                 if self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
                     self.window.animation_manager.play_state("idle")
 
@@ -100,9 +104,12 @@ class InputManager(QObject):
 
         # Проверка "поглаживания"
         pet_pos = self.window.pos()
-        dist = ((x - (pet_pos.x() + 50))**2 + (y - (pet_pos.y() + 50))**2)**0.5
+        dx_pet = x - (pet_pos.x() + 50)
+        dy_pet = y - (pet_pos.y() + 50)
+        dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
 
-        if dist < 60:
+        # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
+        if dist_sq_pet < 3600:
             if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
                  self.window.animation_manager.play_state("playing")
                  self.window.sound_manager.play_sound("purr")
