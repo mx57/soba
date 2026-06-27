@@ -29,10 +29,11 @@ def main():
 
     tray = TrayMenu(window)
 
-    input_manager = InputManager(window)
+    input_manager = InputManager(window, db)
     input_manager.start()
 
     # Cleanup on close
+    window.closed.connect(input_manager.flush_points)
     window.closed.connect(lambda: input_manager.monitor.stop())
     window.closed.connect(lambda: input_manager.monitor.wait())
     window.closed.connect(db.close)

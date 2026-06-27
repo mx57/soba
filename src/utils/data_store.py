@@ -25,6 +25,16 @@ class DataStore:
                 description TEXT
             )
         ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS stats (
+                key TEXT PRIMARY KEY,
+                value INTEGER
+            )
+        ''')
+        # Инициализация очков привязанности
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("bonding_points", 0)')
+
         self.conn.commit()
 
     def log_event(self, event_type, description=""):
@@ -45,6 +55,21 @@ class DataStore:
         cursor = self.conn.cursor()
         cursor.execute('SELECT * FROM activity_log ORDER BY timestamp DESC LIMIT ?', (limit,))
         return cursor.fetchall()
+
+    def add_affection_points(self, points):
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        cursor.execute('UPDATE stats SET value = value + ? WHERE key = "bonding_points"', (points,))
+        self.conn.commit()
+
+    def get_affection_points(self):
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT value FROM stats WHERE key = "bonding_points"')
+        result = cursor.fetchone()
+        return result[0] if result else 0
 
     def close(self):
         """Закрывает соединение с базой данных."""
