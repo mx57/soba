@@ -103,6 +103,11 @@ class AnimationManager:
         elif self.current_state == "stretching":
             # Растягивание
             painter.scale(0.8, 1.4)
+        elif self.current_state == "eating":
+            # Наклоны головы вперед-назад при еде
+            scale_y = 1.0 + 0.1 * abs(math.sin(self.frame_counter * 0.8))
+            painter.translate(0, 10 * (scale_y - 1.0))
+            painter.scale(1.0, scale_y)
 
         painter.translate(-size.width() / 2, -size.height() / 2)
 

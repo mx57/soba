@@ -1,4 +1,5 @@
 import sys
+import time
 from PySide6.QtWidgets import QApplication, QMainWindow, QLabel
 from PySide6.QtCore import Qt, QPoint, QSize, Signal, QPropertyAnimation, QEasingCurve, QTimer
 from src.core.animation_manager import AnimationManager
@@ -10,6 +11,7 @@ class PetWindow(QMainWindow):
     def __init__(self, config_manager=None):
         super().__init__()
         self.config = config_manager
+        self.input_manager = None
 
         # Настройка прозрачного и безрамочного окна
         self.setWindowFlags(
@@ -47,6 +49,7 @@ class PetWindow(QMainWindow):
         self.last_drag_global_pos = QPoint()
         self.is_dragging = False
         self.shake_count = 0
+        self.last_shake_time = 0
         self.original_size = QSize(100, 100)
 
         # Начальный размер
@@ -122,14 +125,22 @@ class PetWindow(QMainWindow):
     def mouseMoveEvent(self, event):
         if event.button() == Qt.LeftButton or self.is_dragging:
             curr_global_pos = event.globalPosition().toPoint()
+            current_time = time.time()
 
-            # Детекция встряхивания (shaking)
+            # Детекция встряхивания (shaking) - оптимизированная
             if not self.last_drag_global_pos.isNull():
                 drag_delta = curr_global_pos - self.last_drag_global_pos
-                if drag_delta.manhattanLength() > 50: # Резкое движение
+                if drag_delta.manhattanLength() > 60: # Более резкое движение
+                    # Если прошло больше 500мс с прошлого резкого движения, сбрасываем счетчик
+                    if current_time - self.last_shake_time > 0.5:
+                        self.shake_count = 0
+
                     self.shake_count += 1
-                    if self.shake_count > 5:
-                        self.animation_manager.play_state("shaking")
+                    self.last_shake_time = current_time
+
+                    if self.shake_count > 4: # 5 резких движений подряд
+                        if self.animation_manager.current_state != "shaking":
+                            self.animation_manager.play_state("shaking")
 
             self.last_drag_global_pos = curr_global_pos
 

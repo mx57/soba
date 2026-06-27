@@ -4,6 +4,7 @@ from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import QObject
 from src.utils.paths import TRAY_ICON_PATH, get_animation_path
 from src.ui.settings_dialog import SettingsDialog
+from src.ui.stats_dialog import StatsDialog
 
 class TrayMenu(QObject):
     def __init__(self, pet_window):
@@ -26,7 +27,7 @@ class TrayMenu(QObject):
     def setup_menu(self):
         # Действия с питомцем
         feed_action = QAction("Покормить", self)
-        feed_action.triggered.connect(lambda: self.window.animation_manager.play_state("eating"))
+        feed_action.triggered.connect(self.feed_pet)
         self.menu.addAction(feed_action)
 
         play_action = QAction("Поиграть", self)
@@ -81,6 +82,11 @@ class TrayMenu(QObject):
 
         self.menu.addSeparator()
 
+        # Статистика
+        stats_action = QAction("Статистика", self)
+        stats_action.triggered.connect(self.show_stats)
+        self.menu.addAction(stats_action)
+
         # Настройки
         settings_action = QAction("Настройки", self)
         settings_action.triggered.connect(self.show_settings)
@@ -112,3 +118,16 @@ class TrayMenu(QObject):
             # Обновляем скин в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.show_message("Настройки сохранены! 💾")
+
+    def show_stats(self):
+        if self.window.input_manager and self.window.input_manager.db:
+            # Сбрасываем очки перед показом
+            self.window.input_manager.flush_points()
+            dialog = StatsDialog(self.window.input_manager.db, self.window)
+            dialog.exec()
+
+    def feed_pet(self):
+        self.window.animation_manager.play_state("eating")
+        if self.window.input_manager:
+            self.window.input_manager.add_points(5)
+            self.window.show_message("Мням! +5 ❤️")
