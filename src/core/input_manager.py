@@ -1,6 +1,7 @@
 import time
 from pynput import mouse, keyboard
 from PySide6.QtCore import QObject, Signal, QThread, QTimer
+from src.utils.bonding_utils import get_level
 
 class InputMonitor(QThread):
     key_pressed = Signal()
@@ -77,20 +78,28 @@ class InputManager(QObject):
 
         # 2. Начисление очков привязанности за взаимодействие (буферизация)
         if self.db and self.window.animation_manager.current_state in ["working", "overheat", "playing"]:
-            self.pending_points += 1
+            self.add_points(1)
 
-            # Сохраняем в БД только когда накопилось 10 очков (примерно каждые 10 сек активной работы)
-            # или если прошло много времени (но здесь проще по количеству для десктопного приложения)
-            if self.pending_points >= 10:
-                self.flush_points()
+    def add_points(self, points):
+        """Добавляет очки и проверяет повышение уровня."""
+        if not self.db:
+            return
 
-            # Проверка достижений (визуально можно чаще, используя буферизованные очки)
-            virtual_total = self.last_affection_points + self.pending_points
-            if virtual_total // 100 > self.last_affection_points // 100:
-                self.flush_points() # Обязательно сбрасываем перед уведомлением
-                level = self.last_affection_points // 100
-                self.window.show_message(f"Уровень дружбы повышен: {level} ❤️")
-                self.window.sound_manager.play_sound("happy")
+        old_level = get_level(self.last_affection_points)
+        self.pending_points += points
+
+        # Сохраняем в БД только когда накопилось 10 очков (примерно каждые 10 сек активной работы)
+        if self.pending_points >= 10:
+            self.flush_points()
+
+        # Проверка достижений (визуально можно чаще, используя буферизованные очки)
+        virtual_total = self.last_affection_points + self.pending_points
+        new_level = get_level(virtual_total)
+
+        if new_level > old_level:
+            self.flush_points() # Обязательно сбрасываем перед уведомлением
+            self.window.show_message(f"Уровень дружбы повышен: {new_level} ❤️")
+            self.window.sound_manager.play_sound("happy")
 
     def flush_points(self):
         """Записывает накопленные очки в базу данных."""
