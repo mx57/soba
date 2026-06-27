@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QLabel
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QMovie, QPixmap, QPainter
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, QPoint
 from src.utils.paths import ANIMATIONS_DIR, get_animation_path
 
 class AnimationManager:
@@ -18,6 +18,7 @@ class AnimationManager:
         self.current_state = "idle"
         self.pet_type = "cat"
         self.skin = config.get("skin") if config else "default"
+        self.last_mouse_pos = (0, 0)
 
         # Таймер для процедурной SVG анимации
         self.anim_timer = QTimer()
@@ -68,9 +69,10 @@ class AnimationManager:
         painter.translate(size.width() / 2, size.height() / 2)
 
         # Слежение глазами (смещение всего котика в сторону курсора)
-        cursor_pos = self.label.mapFromGlobal(self.label.cursor().pos())
-        look_x = (cursor_pos.x() - size.width()/2) / size.width() * 5
-        look_y = (cursor_pos.y() - size.height()/2) / size.height() * 5
+        # Оптимизация: используем кешированную позицию мыши
+        local_mouse = self.label.mapFromGlobal(self.label.cursor().pos() if not hasattr(self, 'last_mouse_pos_qpoint') else self.last_mouse_pos_qpoint)
+        look_x = (local_mouse.x() - size.width()/2) / size.width() * 5
+        look_y = (local_mouse.y() - size.height()/2) / size.height() * 5
         painter.translate(look_x, look_y)
 
         # Базовые трансформации
@@ -150,3 +152,7 @@ class AnimationManager:
         if self.config:
             self.config.set("skin", skin_name)
         self.play_state(self.current_state)
+
+    def set_mouse_pos(self, x, y):
+        self.last_mouse_pos = (x, y)
+        self.last_mouse_pos_qpoint = QPoint(x, y)

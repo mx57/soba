@@ -1,6 +1,6 @@
 import time
 from pynput import mouse, keyboard
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, Signal, QThread, QTimer
 
 class InputMonitor(QThread):
     key_pressed = Signal()
@@ -34,9 +34,10 @@ class InputMonitor(QThread):
         self.running = False
 
 class InputManager(QObject):
-    def __init__(self, pet_window):
+    def __init__(self, pet_window, data_store=None):
         super().__init__()
         self.window = pet_window
+        self.db = data_store
         self.monitor = InputMonitor()
 
         self.last_key_time = 0
@@ -46,38 +47,84 @@ class InputManager(QObject):
 
         self.last_mouse_time = 0
         self.last_mouse_pos = (0, 0)
+        self.last_input_time = time.time()
 
         self.monitor.key_pressed.connect(self.handle_key)
         self.monitor.mouse_moved.connect(self.handle_mouse)
 
+        # Watchdog для сброса состояний при отсутствии активности и начисления очков
+        self.watchdog = QTimer(self)
+        self.watchdog.timeout.connect(self.periodic_check)
+
+        self.last_affection_points = 0
+        self.pending_points = 0
+        if self.db:
+            self.last_affection_points = self.db.get_affection_points()
+
     def start(self):
         self.monitor.start()
+        self.watchdog.start(500) # Проверка каждые 0.5 сек
+
+    def periodic_check(self):
+        now = time.time()
+
+        # 1. Проверка бездействия
+        # Если нет ввода более 2 секунд - сброс в idle
+        if now - self.last_input_time > 2.0:
+            if self.window.animation_manager.current_state in ["working", "overheat", "hunting", "playing"]:
+                self.window.animation_manager.play_state("idle")
+            self.typing_count = 0
+
+        # 2. Начисление очков привязанности за взаимодействие (буферизация)
+        if self.db and self.window.animation_manager.current_state in ["working", "overheat", "playing"]:
+            self.pending_points += 1
+
+            # Сохраняем в БД только когда накопилось 10 очков (примерно каждые 10 сек активной работы)
+            # или если прошло много времени (но здесь проще по количеству для десктопного приложения)
+            if self.pending_points >= 10:
+                self.flush_points()
+
+            # Проверка достижений (визуально можно чаще, используя буферизованные очки)
+            virtual_total = self.last_affection_points + self.pending_points
+            if virtual_total // 100 > self.last_affection_points // 100:
+                self.flush_points() # Обязательно сбрасываем перед уведомлением
+                level = self.last_affection_points // 100
+                self.window.show_message(f"Уровень дружбы повышен: {level} ❤️")
+                self.window.sound_manager.play_sound("happy")
+
+    def flush_points(self):
+        """Записывает накопленные очки в базу данных."""
+        if self.db and self.pending_points > 0:
+            self.db.add_affection_points(self.pending_points)
+            self.last_affection_points = self.db.get_affection_points()
+            self.pending_points = 0
 
     def handle_key(self):
         now = time.time()
+        self.last_input_time = now
+
         dt = now - self.last_key_time
-
         if dt > 1.0:
-            kps = self.typing_count / dt if dt > 0 else 0
             self.typing_count = 1
-
-            if kps > self.overheat_threshold:
-                if self.window.animation_manager.current_state != "overheat":
-                    self.window.animation_manager.play_state("overheat")
-            elif kps > self.typing_speed_threshold:
-                if self.window.animation_manager.current_state != "working":
-                    self.window.animation_manager.play_state("working")
-            else:
-                # Если скорость упала ниже порога, возвращаемся в idle
-                if self.window.animation_manager.current_state in ["working", "overheat"]:
-                    self.window.animation_manager.play_state("idle")
         else:
             self.typing_count += 1
 
         self.last_key_time = now
 
+        if self.typing_count > self.overheat_threshold:
+            if self.window.animation_manager.current_state != "overheat":
+                self.window.animation_manager.play_state("overheat")
+        elif self.typing_count > self.typing_speed_threshold:
+            if self.window.animation_manager.current_state != "working":
+                self.window.animation_manager.play_state("working")
+
     def handle_mouse(self, x, y):
         now = time.time()
+        self.last_input_time = now
+
+        # Передаем позицию мыши в AnimationManager для оптимизации слежения глазами
+        self.window.animation_manager.set_mouse_pos(x, y)
+
         # Вычисляем скорость мыши
         dt = now - self.last_mouse_time
         if dt > 0:
