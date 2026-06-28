@@ -63,7 +63,15 @@ class PetWindow(QMainWindow):
 
         self.is_hidden = False
         self.original_pos = self.pos()
+        self._cached_pos = self.pos()
         self.timer_system = None
+
+    def moveEvent(self, event):
+        self._cached_pos = event.pos()
+        super().moveEvent(event)
+
+    def get_cached_pos(self):
+        return self._cached_pos
 
     def set_timer_system(self, timer_system):
         self.timer_system = timer_system
@@ -75,9 +83,9 @@ class PetWindow(QMainWindow):
         self.pos_animation.setDuration(1000)
 
         if not self.is_hidden:
-            self.original_pos = self.pos()
+            self.original_pos = self._cached_pos
             # Прячемся за правый край
-            dest = QPoint(screen.width() - 20, self.y())
+            dest = QPoint(screen.width() - 20, self._cached_pos.y())
             self.is_hidden = True
         else:
             dest = self.original_pos
@@ -94,10 +102,26 @@ class PetWindow(QMainWindow):
         # Целевая позиция (центр котика на курсоре)
         dest_x = target_x - self.width() // 2
         dest_y = target_y - self.height() // 2
+        dest_point = QPoint(dest_x, dest_y)
+
+        # Если уже движемся к этой точке, не перезапускаем
+        if self.pos_animation.state() == QPropertyAnimation.Running and self.pos_animation.endValue() == dest_point:
+            return
+
+        # Проверка "поимки"
+        curr_pos = self.get_cached_pos()
+        dist_sq = (curr_pos.x() - dest_x)**2 + (curr_pos.y() - dest_y)**2
+        if dist_sq < 100: # 10 пикселей
+            if self.animation_manager.current_state == "hunting":
+                self.animation_manager.play_state("happy")
+                self.show_message("Поймал! 🐾")
+                if self.input_manager:
+                    self.input_manager.add_points(2)
+            return
 
         self.pos_animation.stop()
         self.pos_animation.setDuration(500)
-        self.pos_animation.setEndValue(QPoint(dest_x, dest_y))
+        self.pos_animation.setEndValue(dest_point)
         self.pos_animation.start()
 
     def show_message(self, text, duration=3000):
@@ -145,7 +169,7 @@ class PetWindow(QMainWindow):
             self.last_drag_global_pos = curr_global_pos
 
             # Эффект Mochi Drag (растягивание при движении)
-            diff = curr_global_pos - (self.pos() + self.drag_position)
+            diff = curr_global_pos - (self._cached_pos + self.drag_position)
 
             # Более органичное растягивание (ограниченное и плавное)
             stretch_x = min(2.0, 1.0 + abs(diff.x()) / 200)

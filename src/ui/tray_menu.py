@@ -40,6 +40,14 @@ class TrayMenu(QObject):
 
         self.menu.addSeparator()
 
+        # Лазерная указка
+        laser_action = QAction("Лазерная указка 🔴", self)
+        laser_action.setCheckable(True)
+        laser_action.triggered.connect(self.toggle_laser)
+        self.menu.addAction(laser_action)
+
+        self.menu.addSeparator()
+
         # Выбор скина
         skin_menu = QMenu("Выбрать окрас", self.menu)
         skins = {
@@ -131,3 +139,11 @@ class TrayMenu(QObject):
         if self.window.input_manager:
             self.window.input_manager.add_points(5)
             self.window.show_message("Мням! +5 ❤️")
+
+    def toggle_laser(self, checked):
+        if self.window.input_manager:
+            is_active = self.window.input_manager.toggle_laser_mode()
+            if is_active:
+                self.show_message("Мини-игра", "Лазерная указка активирована! 🔴")
+            else:
+                self.show_message("Мини-игра", "Лазерная указка выключена.")
