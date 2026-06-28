@@ -69,10 +69,21 @@ class AnimationManager:
         painter.translate(size.width() / 2, size.height() / 2)
 
         # Слежение глазами (смещение всего котика в сторону курсора)
-        # Оптимизация: используем кешированную позицию мыши
-        local_mouse = self.label.mapFromGlobal(self.label.cursor().pos() if not hasattr(self, 'last_mouse_pos_qpoint') else self.last_mouse_pos_qpoint)
-        look_x = (local_mouse.x() - size.width()/2) / size.width() * 5
-        look_y = (local_mouse.y() - size.height()/2) / size.height() * 5
+        # Оптимизация: используем кешированную позицию мыши относительно окна
+        # Рассчитываем смещение на основе глобальных координат, чтобы избежать mapFromGlobal в каждом кадре
+        window = self.label.window()
+        if hasattr(window, 'get_cached_pos'):
+            pet_pos = window.get_cached_pos()
+            local_mouse_x = self.last_mouse_pos[0] - pet_pos.x()
+            local_mouse_y = self.last_mouse_pos[1] - pet_pos.y()
+        else:
+            # Fallback к стандартному методу, если окно не поддерживает кэширование
+            local_mouse = self.label.mapFromGlobal(self.label.cursor().pos())
+            local_mouse_x = local_mouse.x()
+            local_mouse_y = local_mouse.y()
+
+        look_x = (local_mouse_x - size.width()/2) / size.width() * 5
+        look_y = (local_mouse_y - size.height()/2) / size.height() * 5
         painter.translate(look_x, look_y)
 
         # Базовые трансформации

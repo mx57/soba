@@ -49,6 +49,7 @@ class InputManager(QObject):
         self.last_mouse_time = 0
         self.last_mouse_pos = (0, 0)
         self.last_input_time = time.time()
+        self.laser_mode = False
 
         self.monitor.key_pressed.connect(self.handle_key)
         self.monitor.mouse_moved.connect(self.handle_mouse)
@@ -72,13 +73,21 @@ class InputManager(QObject):
         # 1. Проверка бездействия
         # Если нет ввода более 2 секунд - сброс в idle
         if now - self.last_input_time > 2.0:
-            if self.window.animation_manager.current_state in ["working", "overheat", "hunting", "playing"]:
+            if self.window.animation_manager.current_state in ["working", "overheat", "hunting", "playing", "eating"]:
                 self.window.animation_manager.play_state("idle")
             self.typing_count = 0
 
         # 2. Начисление очков привязанности за взаимодействие (буферизация)
-        if self.db and self.window.animation_manager.current_state in ["working", "overheat", "playing"]:
-            self.add_points(1)
+        # Начисляем очки раз в 2 секунды (каждый 4-й тик таймера 0.5с) для баланса
+        if int(now * 2) % 4 == 0:
+            if self.db and self.window.animation_manager.current_state in ["working", "overheat", "playing", "hunting"]:
+                self.add_points(1)
+
+        # 3. Поддержка непрерывной охоты
+        if self.window.animation_manager.current_state == "hunting" or self.laser_mode:
+            if self.laser_mode and self.window.animation_manager.current_state not in ["hunting", "happy"]:
+                self.window.animation_manager.play_state("hunting")
+            self.window.start_hunting(self.last_mouse_pos[0], self.last_mouse_pos[1])
 
     def add_points(self, points):
         """Добавляет очки и проверяет повышение уровня."""
@@ -105,7 +114,7 @@ class InputManager(QObject):
         """Записывает накопленные очки в базу данных."""
         if self.db and self.pending_points > 0:
             self.db.add_affection_points(self.pending_points)
-            self.last_affection_points = self.db.get_affection_points()
+            self.last_affection_points += self.pending_points
             self.pending_points = 0
 
     def handle_key(self):
@@ -145,25 +154,41 @@ class InputManager(QObject):
             # Если мышь движется быстро, активируем охоту
             limit_hunt = 1500 * dt
             limit_stop = 100 * dt
-            if dist_sq > limit_hunt * limit_hunt: # px/sec
+            if self.laser_mode:
+                if self.window.animation_manager.current_state != "hunting" and self.window.animation_manager.current_state != "happy":
+                    self.window.animation_manager.play_state("hunting")
+            elif dist_sq > limit_hunt * limit_hunt: # px/sec
                 if self.window.animation_manager.current_state != "hunting":
                     self.window.animation_manager.play_state("hunting")
                     self.window.start_hunting(x, y)
             elif dist_sq < limit_stop * limit_stop:
                 # Если мышь замерла, выходим из охоты через пару секунд
-                if self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
+                if not self.laser_mode and self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
                     self.window.animation_manager.play_state("idle")
 
         self.last_mouse_pos = (x, y)
         self.last_mouse_time = now
 
         # Проверка "поглаживания" (оптимизировано через сравнение квадратов расстояний)
-        pet_pos = self.window.pos()
-        dx_pet = x - (pet_pos.x() + 50)
-        dy_pet = y - (pet_pos.y() + 50)
+        pet_pos = self.window.get_cached_pos()
+        # Динамический расчет центра котика
+        center_x = pet_pos.x() + self.window.width() // 2
+        center_y = pet_pos.y() + self.window.height() // 2
+        dx_pet = x - center_x
+        dy_pet = y - center_y
         dist_sq_pet = dx_pet*dx_pet + dy_pet*dy_pet
 
         if dist_sq_pet < 3600: # 60**2
             if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
                  self.window.animation_manager.play_state("playing")
                  self.window.sound_manager.play_sound("purr")
+
+    def toggle_laser_mode(self):
+        self.laser_mode = not self.laser_mode
+        if self.laser_mode:
+            self.window.animation_manager.play_state("hunting")
+            self.window.setCursor(Qt.CrossCursor)
+        else:
+            self.window.setCursor(Qt.ArrowCursor)
+            self.window.animation_manager.play_state("idle")
+        return self.laser_mode
