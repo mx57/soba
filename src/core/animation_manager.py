@@ -19,6 +19,8 @@ class AnimationManager:
         self.pet_type = "cat"
         self.skin = config.get("skin") if config else "default"
         self.last_mouse_pos = (0, 0)
+        self.cached_pixmap = None
+        self.last_size = QSize(0, 0)
 
         # Таймер для процедурной SVG анимации
         self.anim_timer = QTimer()
@@ -55,10 +57,15 @@ class AnimationManager:
             return
 
         size = self.label.size()
-        pixmap = QPixmap(size)
-        pixmap.fill(Qt.transparent)
 
-        painter = QPainter(pixmap)
+        # Оптимизация: кэширование QPixmap для избежания повторных аллокаций
+        if self.cached_pixmap is None or self.last_size != size:
+            self.cached_pixmap = QPixmap(size)
+            self.last_size = size
+
+        self.cached_pixmap.fill(Qt.transparent)
+
+        painter = QPainter(self.cached_pixmap)
 
         # Процедурные трансформации в зависимости от состояния
         self.frame_counter += 1
@@ -126,7 +133,7 @@ class AnimationManager:
         painter.restore()
         painter.end()
 
-        self.label.setPixmap(pixmap)
+        self.label.setPixmap(self.cached_pixmap)
 
     def play_state(self, state):
         self.current_state = state

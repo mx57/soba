@@ -125,6 +125,9 @@ class TrayMenu(QObject):
         if dialog.exec():
             # Обновляем скин в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
+            # Перезапускаем таймер растяжки с новым интервалом
+            if self.window.timer_system:
+                self.window.timer_system.restart_stretch_timer()
             self.window.show_message("Настройки сохранены! 💾")
 
     def show_stats(self):
@@ -139,6 +142,9 @@ class TrayMenu(QObject):
         if self.window.input_manager:
             self.window.input_manager.add_points(5)
             self.window.show_message("Мням! +5 ❤️")
+            if self.window.input_manager.db:
+                self.window.input_manager.db.increment_stat("total_feedings", 1)
+                self.window.input_manager.check_for_achievements()
 
     def toggle_laser(self, checked):
         if self.window.input_manager:
