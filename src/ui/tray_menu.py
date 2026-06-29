@@ -31,11 +31,11 @@ class TrayMenu(QObject):
         self.menu.addAction(feed_action)
 
         play_action = QAction("Поиграть", self)
-        play_action.triggered.connect(lambda: self.window.animation_manager.play_state("playing"))
+        play_action.triggered.connect(lambda checked: self.window.animation_manager.play_state("playing"))
         self.menu.addAction(play_action)
 
         sleep_action = QAction("Уложить спать", self)
-        sleep_action.triggered.connect(lambda: self.window.animation_manager.play_state("sleeping"))
+        sleep_action.triggered.connect(lambda checked: self.window.animation_manager.play_state("sleeping"))
         self.menu.addAction(sleep_action)
 
         self.menu.addSeparator()
@@ -63,7 +63,7 @@ class TrayMenu(QObject):
         }
         for name, skin_id in skins.items():
             action = QAction(name, self)
-            action.triggered.connect(lambda checked=False, sid=skin_id: self.window.animation_manager.set_skin(sid))
+            action.triggered.connect(lambda checked, sid=skin_id: self.window.animation_manager.set_skin(sid))
             skin_menu.addAction(action)
         self.menu.addMenu(skin_menu)
 
@@ -104,46 +104,51 @@ class TrayMenu(QObject):
 
         # Выход
         quit_action = QAction("Выход", self)
-        quit_action.triggered.connect(QApplication.instance().quit)
+        quit_action.triggered.connect(self.quit_app)
         self.menu.addAction(quit_action)
 
     def show_message(self, title, message):
         self.tray_icon.showMessage(title, message, QSystemTrayIcon.Information, 5000)
 
-    def start_work_timer(self):
+    def quit_app(self, checked=False):
+        QApplication.instance().quit()
+
+    def start_work_timer(self, checked=False):
         if self.window.timer_system:
             self.window.timer_system.start_pomodoro("work")
             self.window.show_message("Пора работать! 🛠")
 
-    def start_break_timer(self):
+    def start_break_timer(self, checked=False):
         if self.window.timer_system:
             self.window.timer_system.start_pomodoro("break")
             self.window.show_message("Отдыхаем! ☕")
 
-    def show_settings(self):
+    def show_settings(self, checked=False):
         dialog = SettingsDialog(self.window.config, self.window)
         if dialog.exec():
-            # Обновляем скин в реальном времени
-            self.window.animation_manager.set_skin(self.window.config.get("skin"))
+            # Обновляем настройки в реальном времени
+            self.window.update_from_config()
             self.window.show_message("Настройки сохранены! 💾")
 
-    def show_stats(self):
+    def show_stats(self, checked=False):
         if self.window.input_manager and self.window.input_manager.db:
             # Сбрасываем очки перед показом
             self.window.input_manager.flush_points()
             dialog = StatsDialog(self.window.input_manager.db, self.window)
             dialog.exec()
 
-    def feed_pet(self):
+    def feed_pet(self, checked=False):
         self.window.animation_manager.play_state("eating")
         if self.window.input_manager:
             self.window.input_manager.add_points(5)
+            if self.window.input_manager.db:
+                self.window.input_manager.db.increment_stat("times_fed")
             self.window.show_message("Мням! +5 ❤️")
 
     def toggle_laser(self, checked):
         if self.window.input_manager:
-            is_active = self.window.input_manager.toggle_laser_mode()
-            if is_active:
-                self.show_message("Мини-игра", "Лазерная указка активирована! 🔴")
+            self.window.input_manager.set_laser_mode(checked)
+            if checked:
+                self.window.show_message("Лазерная указка активирована! 🔴")
             else:
-                self.show_message("Мини-игра", "Лазерная указка выключена.")
+                self.window.show_message("Лазерная указка выключена.")

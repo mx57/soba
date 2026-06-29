@@ -40,3 +40,25 @@ def get_level_info(points):
 def get_level(points):
     level, _, _, _ = get_level_info(points)
     return level
+
+def get_achievements(db):
+    """
+    Возвращает список достижений на основе статистики.
+    Returns: List of (title, description, is_unlocked)
+    """
+    stats = {
+        "points": db.get_affection_points(),
+        "mice": db.get_stat("mice_caught"),
+        "fed": db.get_stat("times_fed")
+    }
+
+    achievements = [
+        ("Первая встреча", "Запустить приложение", True),
+        ("Начинающий охотник", "Поймать 5 мышек", stats["mice"] >= 5),
+        ("Гроза грызунов", "Поймать 50 мышек", stats["mice"] >= 50),
+        ("Заботливый хозяин", "Покормить котика 10 раз", stats["fed"] >= 10),
+        ("Лучшие друзья", "Достичь 1000 очков привязанности", stats["points"] >= 1000),
+        ("Легендарный дуэт", "Достичь максимального уровня привязанности", stats["points"] >= 2500)
+    ]
+
+    return achievements

@@ -32,8 +32,11 @@ class DataStore:
                 value INTEGER
             )
         ''')
-        # Инициализация очков привязанности
+        # Инициализация очков привязанности и статистики
         cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("bonding_points", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("mice_caught", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("times_fed", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("total_work_seconds", 0.0)')
 
         self.conn.commit()
 
@@ -57,17 +60,23 @@ class DataStore:
         return cursor.fetchall()
 
     def add_affection_points(self, points):
-        if not self.conn:
-            self.init_db()
-        cursor = self.conn.cursor()
-        cursor.execute('UPDATE stats SET value = value + ? WHERE key = "bonding_points"', (points,))
-        self.conn.commit()
+        self.increment_stat("bonding_points", points)
 
     def get_affection_points(self):
+        return self.get_stat("bonding_points")
+
+    def increment_stat(self, key, amount=1):
         if not self.conn:
             self.init_db()
         cursor = self.conn.cursor()
-        cursor.execute('SELECT value FROM stats WHERE key = "bonding_points"')
+        cursor.execute('UPDATE stats SET value = value + ? WHERE key = ?', (amount, key))
+        self.conn.commit()
+
+    def get_stat(self, key):
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT value FROM stats WHERE key = ?', (key,))
         result = cursor.fetchone()
         return result[0] if result else 0
 

@@ -76,7 +76,13 @@ class PetWindow(QMainWindow):
     def set_timer_system(self, timer_system):
         self.timer_system = timer_system
 
-    def toggle_peek_mode(self):
+    def update_from_config(self):
+        """Обновляет компоненты после изменения настроек."""
+        if self.timer_system:
+            self.timer_system.update_config()
+        self.animation_manager.set_skin(self.config.get("skin"))
+
+    def toggle_peek_mode(self, checked=False):
         """Уход котика за край экрана и возвращение"""
         screen = self.screen().geometry()
         self.pos_animation.stop()
@@ -117,6 +123,7 @@ class PetWindow(QMainWindow):
                 self.show_message("Поймал! 🐾")
                 if self.input_manager:
                     self.input_manager.add_points(2)
+                    self.input_manager.on_mouse_caught()
             return
 
         self.pos_animation.stop()

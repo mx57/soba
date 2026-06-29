@@ -21,6 +21,13 @@ class TimerSystem(QObject):
         interval = self.config.get("stretch_interval") * 60 * 1000 # в мс
         self.stretch_timer.start(interval)
 
+    def update_config(self):
+        """Обновляет интервалы таймеров из конфигурации."""
+        if self.stretch_timer.isActive():
+            self.start_stretch_timer()
+        # Если помодоро активен, мы не прерываем его,
+        # изменения вступят в силу при следующем запуске.
+
     def on_stretch_timeout(self):
         self.stretch_reminder.emit()
 

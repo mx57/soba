@@ -1,10 +1,9 @@
 import os
 import random
 import math
-from PySide6.QtGui import QMovie
+from PySide6.QtGui import QMovie, QPixmap, QPainter, QCursor
 from PySide6.QtWidgets import QLabel
 from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QMovie, QPixmap, QPainter
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtCore import QTimer, QPoint
 from src.utils.paths import ANIMATIONS_DIR, get_animation_path
@@ -18,7 +17,10 @@ class AnimationManager:
         self.current_state = "idle"
         self.pet_type = "cat"
         self.skin = config.get("skin") if config else "default"
-        self.last_mouse_pos = (0, 0)
+        # Инициализируем текущей позицией мыши, чтобы глаза не "залипали" в 0,0
+        pos = QCursor.pos()
+        self.last_mouse_pos = (pos.x(), pos.y())
+        self._pixmap_cache = None
 
         # Таймер для процедурной SVG анимации
         self.anim_timer = QTimer()
@@ -55,10 +57,13 @@ class AnimationManager:
             return
 
         size = self.label.size()
-        pixmap = QPixmap(size)
-        pixmap.fill(Qt.transparent)
 
-        painter = QPainter(pixmap)
+        # Оптимизация: повторное использование QPixmap
+        if self._pixmap_cache is None or self._pixmap_cache.size() != size:
+            self._pixmap_cache = QPixmap(size)
+
+        self._pixmap_cache.fill(Qt.transparent)
+        painter = QPainter(self._pixmap_cache)
 
         # Процедурные трансформации в зависимости от состояния
         self.frame_counter += 1
@@ -81,6 +86,10 @@ class AnimationManager:
             local_mouse = self.label.mapFromGlobal(self.label.cursor().pos())
             local_mouse_x = local_mouse.x()
             local_mouse_y = local_mouse.y()
+
+        # Ограничиваем координаты для предотвращения "вылета" глаз
+        local_mouse_x = max(0, min(size.width(), local_mouse_x))
+        local_mouse_y = max(0, min(size.height(), local_mouse_y))
 
         look_x = (local_mouse_x - size.width()/2) / size.width() * 5
         look_y = (local_mouse_y - size.height()/2) / size.height() * 5
@@ -126,7 +135,7 @@ class AnimationManager:
         painter.restore()
         painter.end()
 
-        self.label.setPixmap(pixmap)
+        self.label.setPixmap(self._pixmap_cache)
 
     def play_state(self, state):
         self.current_state = state
@@ -170,5 +179,5 @@ class AnimationManager:
         self.play_state(self.current_state)
 
     def set_mouse_pos(self, x, y):
+        """Обновляет позицию мыши для слежения глазами."""
         self.last_mouse_pos = (x, y)
-        self.last_mouse_pos_qpoint = QPoint(x, y)

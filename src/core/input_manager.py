@@ -49,6 +49,7 @@ class InputManager(QObject):
         self.last_mouse_time = 0
         self.last_mouse_pos = (0, 0)
         self.last_input_time = time.time()
+        self.last_point_time = 0
         self.laser_mode = False
 
         self.monitor.key_pressed.connect(self.handle_key)
@@ -78,12 +79,17 @@ class InputManager(QObject):
             self.typing_count = 0
 
         # 2. Начисление очков привязанности за взаимодействие (буферизация)
-        # Начисляем очки раз в 2 секунды (каждый 4-й тик таймера 0.5с) для баланса
-        if int(now * 2) % 4 == 0:
+        # Начисляем очки раз в 2 секунды для баланса
+        if now - self.last_point_time >= 2.0:
             if self.db and self.window.animation_manager.current_state in ["working", "overheat", "playing", "hunting"]:
                 self.add_points(1)
+                self.last_point_time = now
 
-        # 3. Поддержка непрерывной охоты
+        # 3. Учет времени работы
+        if self.db and self.window.animation_manager.current_state in ["working", "overheat"]:
+            self.db.increment_stat("total_work_seconds", 0.5) # Таймер срабатывает каждые 0.5с
+
+        # 4. Поддержка непрерывной охоты
         if self.window.animation_manager.current_state == "hunting" or self.laser_mode:
             if self.laser_mode and self.window.animation_manager.current_state not in ["hunting", "happy"]:
                 self.window.animation_manager.play_state("hunting")
@@ -183,12 +189,16 @@ class InputManager(QObject):
                  self.window.animation_manager.play_state("playing")
                  self.window.sound_manager.play_sound("purr")
 
-    def toggle_laser_mode(self):
-        self.laser_mode = not self.laser_mode
+    def on_mouse_caught(self):
+        """Вызывается при поимке 'мышки' (курсора)."""
+        if self.db:
+            self.db.increment_stat("mice_caught")
+
+    def set_laser_mode(self, enabled):
+        self.laser_mode = enabled
         if self.laser_mode:
             self.window.animation_manager.play_state("hunting")
             self.window.setCursor(Qt.CrossCursor)
         else:
             self.window.setCursor(Qt.ArrowCursor)
             self.window.animation_manager.play_state("idle")
-        return self.laser_mode
