@@ -1,7 +1,7 @@
 import time
 from pynput import mouse, keyboard
 from PySide6.QtCore import QObject, Signal, QThread, QTimer
-from src.utils.bonding_utils import get_level
+from src.utils.bonding_utils import get_level, check_achievements, ACHIEVEMENTS
 
 class InputMonitor(QThread):
     key_pressed = Signal()
@@ -60,8 +60,10 @@ class InputManager(QObject):
 
         self.last_affection_points = 0
         self.pending_points = 0
+        self.unlocked_achievements = []
         if self.db:
             self.last_affection_points = self.db.get_affection_points()
+            self.unlocked_achievements = self.db.get_unlocked_achievements()
 
     def start(self):
         self.monitor.start()
@@ -77,11 +79,17 @@ class InputManager(QObject):
                 self.window.animation_manager.play_state("idle")
             self.typing_count = 0
 
-        # 2. Начисление очков привязанности за взаимодействие (буферизация)
+        # 2. Начисление очков привязанности за взаимодействие (буферизация) и статистика
         # Начисляем очки раз в 2 секунды (каждый 4-й тик таймера 0.5с) для баланса
         if int(now * 2) % 4 == 0:
-            if self.db and self.window.animation_manager.current_state in ["working", "overheat", "playing", "hunting"]:
+            state = self.window.animation_manager.current_state
+            if self.db and state in ["working", "overheat", "playing", "hunting"]:
                 self.add_points(1)
+
+            # Статистика рабочего времени
+            if self.db and state in ["working", "overheat"]:
+                self.db.increment_stat("work_seconds", 2)
+                self.check_for_achievements()
 
         # 3. Поддержка непрерывной охоты
         if self.window.animation_manager.current_state == "hunting" or self.laser_mode:
@@ -101,7 +109,7 @@ class InputManager(QObject):
         if self.pending_points >= 10:
             self.flush_points()
 
-        # Проверка достижений (визуально можно чаще, используя буферизованные очки)
+        # Проверка уровня (визуально можно чаще, используя буферизованные очки)
         virtual_total = self.last_affection_points + self.pending_points
         new_level = get_level(virtual_total)
 
@@ -109,6 +117,7 @@ class InputManager(QObject):
             self.flush_points() # Обязательно сбрасываем перед уведомлением
             self.window.show_message(f"Уровень дружбы повышен: {new_level} ❤️")
             self.window.sound_manager.play_sound("happy")
+            self.check_for_achievements()
 
     def flush_points(self):
         """Записывает накопленные очки в базу данных."""
@@ -117,9 +126,27 @@ class InputManager(QObject):
             self.last_affection_points += self.pending_points
             self.pending_points = 0
 
+    def check_for_achievements(self):
+        if not self.db:
+            return
+
+        new_ids = check_achievements(self.db, self.unlocked_achievements)
+        for ach_id in new_ids:
+            self.unlocked_achievements.append(ach_id)
+            self.db.add_achievement(ach_id)
+            ach = ACHIEVEMENTS[ach_id]
+            self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
+            self.window.sound_manager.play_sound("happy")
+
     def handle_key(self):
         now = time.time()
         self.last_input_time = now
+
+        if self.db:
+            self.db.increment_stat("total_clicks", 1)
+            # Проверяем достижения каждые 100 кликов, чтобы не частить
+            if self.db.get_stat("total_clicks") % 100 == 0:
+                self.check_for_achievements()
 
         dt = now - self.last_key_time
         if dt > 1.0:

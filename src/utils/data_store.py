@@ -34,6 +34,16 @@ class DataStore:
         ''')
         # Инициализация очков привязанности
         cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("bonding_points", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("total_clicks", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("total_feedings", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("work_seconds", 0)')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS achievements (
+                id TEXT PRIMARY KEY,
+                unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
 
         self.conn.commit()
 
@@ -70,6 +80,36 @@ class DataStore:
         cursor.execute('SELECT value FROM stats WHERE key = "bonding_points"')
         result = cursor.fetchone()
         return result[0] if result else 0
+
+    def increment_stat(self, key, amount=1):
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES (?, 0)', (key,))
+        cursor.execute('UPDATE stats SET value = value + ? WHERE key = ?', (amount, key))
+        self.conn.commit()
+
+    def get_stat(self, key):
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT value FROM stats WHERE key = ?', (key,))
+        result = cursor.fetchone()
+        return result[0] if result else 0
+
+    def add_achievement(self, ach_id):
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        cursor.execute('INSERT OR IGNORE INTO achievements (id) VALUES (?)', (ach_id,))
+        self.conn.commit()
+
+    def get_unlocked_achievements(self):
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT id FROM achievements')
+        return [row[0] for row in cursor.fetchall()]
 
     def close(self):
         """Закрывает соединение с базой данных."""

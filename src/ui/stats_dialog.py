@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout, QScrollArea, QWidget
 from PySide6.QtCore import Qt
-from src.utils.bonding_utils import get_level_info
+from src.utils.bonding_utils import get_level_info, ACHIEVEMENTS
 
 class StatsDialog(QDialog):
     def __init__(self, db, parent=None):
@@ -35,6 +35,41 @@ class StatsDialog(QDialog):
             layout.addWidget(progress)
         else:
             layout.addWidget(QLabel("Максимальный уровень достигнут! 🎉"))
+
+        layout.addSpacing(20)
+
+        # Раздел достижений
+        layout.addWidget(QLabel("<b>Достижения:</b>"))
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+
+        unlocked = self.db.get_unlocked_achievements()
+
+        for ach_id, ach_info in ACHIEVEMENTS.items():
+            ach_widget = QWidget()
+            ach_item_layout = QHBoxLayout(ach_widget)
+
+            is_unlocked = ach_id in unlocked
+            icon = ach_info['icon'] if is_unlocked else "🔒"
+
+            label_text = f"<span style='font-size: 20px;'>{icon}</span>"
+            item_label = QLabel(label_text)
+            ach_item_layout.addWidget(item_label)
+
+            info_label = QLabel(f"<b>{ach_info['title']}</b><br/><small>{ach_info['desc']}</small>")
+            if not is_unlocked:
+                info_label.setStyleSheet("color: #888;")
+            ach_item_layout.addWidget(info_label)
+            ach_item_layout.addStretch()
+
+            scroll_layout.addWidget(ach_widget)
+
+        scroll.setWidget(scroll_content)
+        scroll.setFixedHeight(150)
+        layout.addWidget(scroll)
 
         layout.addSpacing(20)
 
