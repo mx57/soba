@@ -37,6 +37,7 @@ class DataStore:
         cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("total_clicks", 0)')
         cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("total_feedings", 0)')
         cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("work_seconds", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("max_kps", 0)')
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS achievements (
@@ -96,6 +97,13 @@ class DataStore:
         cursor.execute('SELECT value FROM stats WHERE key = ?', (key,))
         result = cursor.fetchone()
         return result[0] if result else 0
+
+    def set_stat(self, key, value):
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        cursor.execute('INSERT OR REPLACE INTO stats (key, value) VALUES (?, ?)', (key, value))
+        self.conn.commit()
 
     def add_achievement(self, ach_id):
         if not self.conn:

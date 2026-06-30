@@ -46,7 +46,8 @@ ACHIEVEMENTS = {
     "worker": {"title": "Трудоголик", "desc": "Проведите 10 минут в режиме работы", "icon": "🛠"},
     "hunter": {"title": "Охотник", "desc": "Поймайте курсор 10 раз", "icon": "🎯"},
     "gourmet": {"title": "Гурман", "desc": "Покормите котика 5 раз", "icon": "🐟"},
-    "clicker": {"title": "Кликер", "desc": "Нажмите 1000 клавиш", "icon": "⌨️"}
+    "clicker": {"title": "Кликер", "desc": "Нажмите 1000 клавиш", "icon": "⌨️"},
+    "speed_demon": {"title": "Демон скорости", "desc": "Достигните скорости печати 15 кл/сек", "icon": "⚡"}
 }
 
 def check_achievements(db, unlocked_ids):
@@ -77,5 +78,10 @@ def check_achievements(db, unlocked_ids):
     if "clicker" not in unlocked_ids:
         if db.get_stat("total_clicks") >= 1000:
             new_unlocked.append("clicker")
+
+    # 6. Демон скорости (15 KPS)
+    if "speed_demon" not in unlocked_ids:
+        if db.get_stat("max_kps") >= 15:
+            new_unlocked.append("speed_demon")
 
     return new_unlocked
