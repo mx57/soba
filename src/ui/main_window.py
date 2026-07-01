@@ -117,9 +117,8 @@ class PetWindow(QMainWindow):
                 self.show_message("Поймал! 🐾")
                 if self.input_manager:
                     self.input_manager.add_points(2)
-                    if self.input_manager.db:
-                        self.input_manager.db.increment_stat("cursor_catches", 1)
-                        self.input_manager.check_for_achievements()
+                    self.input_manager.pending_stats["cursor_catches"] += 1
+                    self.input_manager.check_for_achievements()
             return
 
         self.pos_animation.stop()

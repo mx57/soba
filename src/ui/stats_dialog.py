@@ -25,6 +25,13 @@ class StatsDialog(QDialog):
         points_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(points_label)
 
+        # Макс скорость печати
+        max_kps = self.db.get_stat("max_kps")
+        kps_label = QLabel(f"Макс. скорость: {max_kps} кл/сек ⚡")
+        kps_label.setAlignment(Qt.AlignCenter)
+        kps_label.setStyleSheet("color: #555; font-size: 11px;")
+        layout.addWidget(kps_label)
+
         # Прогресс бар
         if points_for_next_level > 0:
             layout.addWidget(QLabel(f"До следующего уровня: {points_for_next_level - points_in_level}"))
@@ -45,12 +52,15 @@ class StatsDialog(QDialog):
         scroll.setWidgetResizable(True)
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(10)
+        scroll_layout.setContentsMargins(5, 5, 5, 5)
 
         unlocked = self.db.get_unlocked_achievements()
 
         for ach_id, ach_info in ACHIEVEMENTS.items():
             ach_widget = QWidget()
             ach_item_layout = QHBoxLayout(ach_widget)
+            ach_item_layout.setContentsMargins(0, 0, 0, 0)
 
             is_unlocked = ach_id in unlocked
             icon = ach_info['icon'] if is_unlocked else "🔒"

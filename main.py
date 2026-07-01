@@ -34,7 +34,7 @@ def main():
     tray = TrayMenu(window)
 
     # Cleanup on close
-    window.closed.connect(input_manager.flush_points)
+    window.closed.connect(input_manager.flush_all)
     window.closed.connect(lambda: input_manager.monitor.stop())
     window.closed.connect(lambda: input_manager.monitor.wait())
     window.closed.connect(db.close)

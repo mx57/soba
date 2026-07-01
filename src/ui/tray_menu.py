@@ -132,8 +132,8 @@ class TrayMenu(QObject):
 
     def show_stats(self):
         if self.window.input_manager and self.window.input_manager.db:
-            # Сбрасываем очки перед показом
-            self.window.input_manager.flush_points()
+            # Сбрасываем все накопленные данные перед показом
+            self.window.input_manager.flush_all()
             dialog = StatsDialog(self.window.input_manager.db, self.window)
             dialog.exec()
 
@@ -142,9 +142,8 @@ class TrayMenu(QObject):
         if self.window.input_manager:
             self.window.input_manager.add_points(5)
             self.window.show_message("Мням! +5 ❤️")
-            if self.window.input_manager.db:
-                self.window.input_manager.db.increment_stat("total_feedings", 1)
-                self.window.input_manager.check_for_achievements()
+            self.window.input_manager.pending_stats["total_feedings"] += 1
+            self.window.input_manager.check_for_achievements()
 
     def toggle_laser(self, checked):
         if self.window.input_manager:

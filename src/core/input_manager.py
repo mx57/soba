@@ -60,10 +60,20 @@ class InputManager(QObject):
 
         self.last_affection_points = 0
         self.pending_points = 0
+        self.pending_stats = {
+            "total_clicks": 0,
+            "work_seconds": 0,
+            "cursor_catches": 0,
+            "total_feedings": 0
+        }
+        self.max_kps = 0
+        self.total_clicks_cache = 0
         self.unlocked_achievements = []
         if self.db:
             self.last_affection_points = self.db.get_affection_points()
             self.unlocked_achievements = self.db.get_unlocked_achievements()
+            self.max_kps = self.db.get_stat("max_kps")
+            self.total_clicks_cache = self.db.get_stat("total_clicks")
 
     def start(self):
         self.monitor.start()
@@ -86,9 +96,9 @@ class InputManager(QObject):
             if self.db and state in ["working", "overheat", "playing", "hunting"]:
                 self.add_points(1)
 
-            # Статистика рабочего времени
+            # Статистика рабочего времени (буферизация)
             if self.db and state in ["working", "overheat"]:
-                self.db.increment_stat("work_seconds", 2)
+                self.pending_stats["work_seconds"] += 2
                 self.check_for_achievements()
 
         # 3. Поддержка непрерывной охоты
@@ -120,16 +130,35 @@ class InputManager(QObject):
             self.check_for_achievements()
 
     def flush_points(self):
-        """Записывает накопленные очки в базу данных."""
-        if self.db and self.pending_points > 0:
+        """Устарело: используйте flush_all"""
+        self.flush_all()
+
+    def flush_all(self):
+        """Записывает все накопленные данные (очки и статистику) в базу данных."""
+        if not self.db:
+            return
+
+        if self.pending_points > 0:
             self.db.add_affection_points(self.pending_points)
             self.last_affection_points += self.pending_points
             self.pending_points = 0
+
+        for key, value in self.pending_stats.items():
+            if value > 0:
+                self.db.increment_stat(key, value)
+                if key == "total_clicks":
+                    self.total_clicks_cache += value
+                self.pending_stats[key] = 0
+
+        if hasattr(self.db, 'set_stat'):
+            self.db.set_stat("max_kps", self.max_kps)
 
     def check_for_achievements(self):
         if not self.db:
             return
 
+        # Перед проверкой сбрасываем буферы, чтобы условия в bonding_utils видели актуальные данные
+        self.flush_all()
         new_ids = check_achievements(self.db, self.unlocked_achievements)
         for ach_id in new_ids:
             self.unlocked_achievements.append(ach_id)
@@ -143,9 +172,10 @@ class InputManager(QObject):
         self.last_input_time = now
 
         if self.db:
-            self.db.increment_stat("total_clicks", 1)
-            # Проверяем достижения каждые 100 кликов, чтобы не частить
-            if self.db.get_stat("total_clicks") % 100 == 0:
+            self.pending_stats["total_clicks"] += 1
+            # Проверяем достижения каждые 100 кликов (виртуальных)
+            total_virtual_clicks = self.total_clicks_cache + self.pending_stats["total_clicks"]
+            if total_virtual_clicks % 100 == 0:
                 self.check_for_achievements()
 
         dt = now - self.last_key_time
@@ -155,6 +185,11 @@ class InputManager(QObject):
             self.typing_count += 1
 
         self.last_key_time = now
+
+        # Обновление макс. KPS
+        if self.typing_count > self.max_kps:
+            self.max_kps = self.typing_count
+            self.check_for_achievements()
 
         if self.typing_count > self.overheat_threshold:
             if self.window.animation_manager.current_state != "overheat":
