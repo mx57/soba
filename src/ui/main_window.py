@@ -65,6 +65,7 @@ class PetWindow(QMainWindow):
         self.original_pos = self.pos()
         self._cached_pos = self.pos()
         self.timer_system = None
+        self.last_meow_time = 0
 
     def moveEvent(self, event):
         self._cached_pos = event.pos()
@@ -110,7 +111,9 @@ class PetWindow(QMainWindow):
 
         # Проверка "поимки"
         curr_pos = self.get_cached_pos()
-        dist_sq = (curr_pos.x() - dest_x)**2 + (curr_pos.y() - dest_y)**2
+        dx = curr_pos.x() - dest_x
+        dy = curr_pos.y() - dest_y
+        dist_sq = dx * dx + dy * dy
         if dist_sq < 100: # 10 пикселей
             if self.animation_manager.current_state == "hunting":
                 self.animation_manager.play_state("happy")
@@ -136,7 +139,12 @@ class PetWindow(QMainWindow):
             0
         )
         self.message_label.show()
-        self.sound_manager.play_sound("meow")
+
+        now = time.time()
+        if now - self.last_meow_time > 2.0:
+            self.sound_manager.play_sound("meow")
+            self.last_meow_time = now
+
         QTimer.singleShot(duration, self.message_label.hide)
 
 
