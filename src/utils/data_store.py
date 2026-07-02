@@ -38,6 +38,9 @@ class DataStore:
         cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("total_feedings", 0)')
         cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("work_seconds", 0)')
         cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("max_kps", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("pomodoros_completed", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("petting_count", 0)')
+        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES ("shakes_count", 0)')
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS achievements (
@@ -97,6 +100,14 @@ class DataStore:
         cursor.execute('SELECT value FROM stats WHERE key = ?', (key,))
         result = cursor.fetchone()
         return result[0] if result else 0
+
+    def get_all_stats(self):
+        """Возвращает все статистические данные в виде словаря."""
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT key, value FROM stats')
+        return {row[0]: row[1] for row in cursor.fetchall()}
 
     def set_stat(self, key, value):
         if not self.conn:

@@ -42,46 +42,39 @@ def get_level(points):
     return level
 
 ACHIEVEMENTS = {
-    "first_friend": {"title": "Первый друг", "desc": "Достигните 1 уровня привязанности", "icon": "❤️"},
-    "worker": {"title": "Трудоголик", "desc": "Проведите 10 минут в режиме работы", "icon": "🛠"},
-    "hunter": {"title": "Охотник", "desc": "Поймайте курсор 10 раз", "icon": "🎯"},
-    "gourmet": {"title": "Гурман", "desc": "Покормите котика 5 раз", "icon": "🐟"},
-    "clicker": {"title": "Кликер", "desc": "Нажмите 1000 клавиш", "icon": "⌨️"},
-    "speed_demon": {"title": "Демон скорости", "desc": "Достигните скорости печати 15 кл/сек", "icon": "⚡"}
+    "first_friend": {"title": "Первый друг", "desc": "Достигните 1 уровня привязанности", "icon": "❤️", "goal": 1, "stat": "level"},
+    "worker": {"title": "Трудоголик", "desc": "Проведите 10 минут в режиме работы", "icon": "🛠", "goal": 600, "stat": "work_seconds"},
+    "hunter": {"title": "Охотник", "desc": "Поймайте курсор 10 раз", "icon": "🎯", "goal": 10, "stat": "cursor_catches"},
+    "gourmet": {"title": "Гурман", "desc": "Покормите котика 5 раз", "icon": "🐟", "goal": 5, "stat": "total_feedings"},
+    "clicker": {"title": "Кликер", "desc": "Нажмите 1000 клавиш", "icon": "⌨️", "goal": 1000, "stat": "total_clicks"},
+    "speed_demon": {"title": "Демон скорости", "desc": "Достигните скорости печати 15 кл/сек", "icon": "⚡", "goal": 15, "stat": "max_kps"},
+    "pomodoro_master": {"title": "Мастер Pomodoro", "desc": "Завершите 5 сессий Pomodoro", "icon": "🍎", "goal": 5, "stat": "pomodoros_completed"},
+    "shake_it": {"title": "Встряска", "desc": "Встряхните котика 10 раз", "icon": "🌪", "goal": 10, "stat": "shakes_count"},
+    "pet_lover": {"title": "Любимец", "desc": "Погладьте котика 50 раз", "icon": "🐾", "goal": 50, "stat": "petting_count"},
+    "marathoner": {"title": "Марафонец", "desc": "Проработайте 1 час суммарно", "icon": "🏆", "goal": 3600, "stat": "work_seconds"}
 }
 
-def check_achievements(db, unlocked_ids):
-    """Проверяет условия достижений и возвращает список новых открытых ID."""
+def check_achievements(stats, unlocked_ids):
+    """
+    Проверяет условия достижений на основе словаря статистик.
+    stats должен содержать все необходимые ключи (bonding_points, work_seconds, и т.д.)
+    """
     new_unlocked = []
 
-    # 1. Первый друг
-    if "first_friend" not in unlocked_ids:
-        if get_level(db.get_affection_points()) >= 1:
-            new_unlocked.append("first_friend")
+    # Расчет уровня для проверки first_friend
+    current_level = get_level(stats.get("bonding_points", 0))
 
-    # 2. Трудоголик (10 мин = 600 сек)
-    if "worker" not in unlocked_ids:
-        if db.get_stat("work_seconds") >= 600:
-            new_unlocked.append("worker")
+    for ach_id, info in ACHIEVEMENTS.items():
+        if ach_id in unlocked_ids:
+            continue
 
-    # 3. Охотник (10 поимок)
-    if "hunter" not in unlocked_ids:
-        if db.get_stat("cursor_catches") >= 10:
-            new_unlocked.append("hunter")
+        stat_value = stats.get(info["stat"], 0)
 
-    # 4. Гурман (5 кормлений)
-    if "gourmet" not in unlocked_ids:
-        if db.get_stat("total_feedings") >= 5:
-            new_unlocked.append("gourmet")
+        # Специальный случай для уровня
+        if info["stat"] == "level":
+            stat_value = current_level
 
-    # 5. Кликер (1000 нажатий)
-    if "clicker" not in unlocked_ids:
-        if db.get_stat("total_clicks") >= 1000:
-            new_unlocked.append("clicker")
-
-    # 6. Демон скорости (15 KPS)
-    if "speed_demon" not in unlocked_ids:
-        if db.get_stat("max_kps") >= 15:
-            new_unlocked.append("speed_demon")
+        if stat_value >= info["goal"]:
+            new_unlocked.append(ach_id)
 
     return new_unlocked

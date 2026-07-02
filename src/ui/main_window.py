@@ -175,6 +175,8 @@ class PetWindow(QMainWindow):
                     if self.shake_count > 4: # 5 резких движений подряд
                         if self.animation_manager.current_state != "shaking":
                             self.animation_manager.play_state("shaking")
+                            if self.input_manager:
+                                self.input_manager.add_shake()
 
             self.last_drag_global_pos = curr_global_pos
 

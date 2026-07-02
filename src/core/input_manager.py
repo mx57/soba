@@ -65,7 +65,10 @@ class InputManager(QObject):
             "total_clicks": 0,
             "work_seconds": 0,
             "cursor_catches": 0,
-            "total_feedings": 0
+            "total_feedings": 0,
+            "pomodoros_completed": 0,
+            "petting_count": 0,
+            "shakes_count": 0
         }
         self.max_kps = 0
         self.total_clicks_cache = 0
@@ -154,19 +157,47 @@ class InputManager(QObject):
         if hasattr(self.db, 'set_stat'):
             self.db.set_stat("max_kps", self.max_kps)
 
+    def add_shake(self):
+        """Регистрирует встряхивание котика."""
+        self.pending_stats["shakes_count"] += 1
+        self.check_for_achievements()
+
+    def on_pomodoro_finished(self, mode):
+        """Слот для завершения сессии Pomodoro."""
+        if mode == "work":
+            self.pending_stats["pomodoros_completed"] += 1
+            self.check_for_achievements()
+
     def check_for_achievements(self):
         if not self.db:
             return
 
-        # Перед проверкой сбрасываем буферы, чтобы условия в bonding_utils видели актуальные данные
-        self.flush_all()
-        new_ids = check_achievements(self.db, self.unlocked_achievements)
-        for ach_id in new_ids:
-            self.unlocked_achievements.append(ach_id)
-            self.db.add_achievement(ach_id)
-            ach = ACHIEVEMENTS[ach_id]
-            self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
-            self.window.sound_manager.play_sound("happy")
+        # Получаем все данные из БД одним запросом
+        current_stats = self.db.get_all_stats()
+
+        # Обновляем значения на основе буферов в памяти
+        current_stats["bonding_points"] = self.last_affection_points + self.pending_points
+        current_stats["total_clicks"] = self.total_clicks_cache + self.pending_stats.get("total_clicks", 0)
+        current_stats["max_kps"] = self.max_kps
+
+        for key, value in self.pending_stats.items():
+            if key not in ["total_clicks"]: # Эти мы уже обработали или они не нужны
+                current_stats[key] = current_stats.get(key, 0) + value
+
+        # Проверка достижений на основе актуальных данных в памяти
+        new_ids = check_achievements(current_stats, self.unlocked_achievements)
+
+        if new_ids:
+            # Сбрасываем данные в БД только если открыто новое достижение
+            self.flush_all()
+            for ach_id in new_ids:
+                # check_achievements уже фильтрует открытые, но на всякий случай
+                if ach_id not in self.unlocked_achievements:
+                    self.unlocked_achievements.append(ach_id)
+                    self.db.add_achievement(ach_id)
+                    ach = ACHIEVEMENTS[ach_id]
+                    self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
+                    self.window.sound_manager.play_sound("happy")
 
     def handle_key(self):
         now = time.time()
@@ -240,6 +271,9 @@ class InputManager(QObject):
         if dist_sq_pet < 3600: # 60**2
             if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
                  self.window.animation_manager.play_state("playing")
+                 self.pending_stats["petting_count"] += 1
+                 if self.pending_stats["petting_count"] % 5 == 0:
+                     self.check_for_achievements()
                  if now - self.last_purr_time > 2.0:
                      self.window.sound_manager.play_sound("purr")
                      self.last_purr_time = now
