@@ -49,6 +49,7 @@ class InputManager(QObject):
         self.last_mouse_time = 0
         self.last_mouse_pos = (0, 0)
         self.last_input_time = time.time()
+        self.last_purr_time = 0
         self.laser_mode = False
 
         self.monitor.key_pressed.connect(self.handle_key)
@@ -223,10 +224,6 @@ class InputManager(QObject):
                 if self.window.animation_manager.current_state != "hunting":
                     self.window.animation_manager.play_state("hunting")
                     self.window.start_hunting(x, y)
-            elif dist_sq < limit_stop * limit_stop:
-                # Если мышь замерла, выходим из охоты через пару секунд
-                if not self.laser_mode and self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
-                    self.window.animation_manager.play_state("idle")
 
         self.last_mouse_pos = (x, y)
         self.last_mouse_time = now
@@ -243,7 +240,9 @@ class InputManager(QObject):
         if dist_sq_pet < 3600: # 60**2
             if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
                  self.window.animation_manager.play_state("playing")
-                 self.window.sound_manager.play_sound("purr")
+                 if now - self.last_purr_time > 2.0:
+                     self.window.sound_manager.play_sound("purr")
+                     self.last_purr_time = now
 
     def toggle_laser_mode(self):
         self.laser_mode = not self.laser_mode
