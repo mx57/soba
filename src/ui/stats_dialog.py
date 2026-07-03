@@ -69,7 +69,31 @@ class StatsDialog(QDialog):
             item_label = QLabel(label_text)
             ach_item_layout.addWidget(item_label)
 
-            info_label = QLabel(f"<b>{ach_info['title']}</b><br/><small>{ach_info['desc']}</small>")
+            # Расчет прогресса
+            progress_text = ""
+            if not is_unlocked and 'goal' in ach_info and 'stat' in ach_info:
+                # Если у нас есть InputManager, берем актуальные данные (включая буфер)
+                if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+                    im = self.parent().input_manager
+                    if ach_info['stat'] == 'bonding_points':
+                        current_val = im.last_affection_points + im.pending_points
+                    elif ach_info['stat'] == 'total_clicks':
+                        current_val = im.total_clicks_cache + im.pending_stats.get('total_clicks', 0)
+                    elif ach_info['stat'] == 'max_kps':
+                        current_val = im.max_kps
+                    else:
+                        current_val = self.db.get_stat(ach_info['stat']) + im.pending_stats.get(ach_info['stat'], 0)
+                else:
+                    current_val = self.db.get_stat(ach_info['stat'])
+
+                if ach_info['stat'] == 'level':
+                    current_val, _, _, _ = get_level_info(points)
+
+                goal = ach_info['goal']
+                if goal > 0:
+                    progress_text = f" <span style='color: #888;'>({current_val}/{goal})</span>"
+
+            info_label = QLabel(f"<b>{ach_info['title']}</b>{progress_text}<br/><small>{ach_info['desc']}</small>")
             if not is_unlocked:
                 info_label.setStyleSheet("color: #888;")
             ach_item_layout.addWidget(info_label)

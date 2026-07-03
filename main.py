@@ -31,6 +31,8 @@ def main():
     window.input_manager = input_manager
     input_manager.start()
 
+    timer_system.pomodoro_finished.connect(input_manager.on_pomodoro_finished)
+
     tray = TrayMenu(window)
 
     # Cleanup on close
