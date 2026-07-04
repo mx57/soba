@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QLabel
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QMovie, QPixmap, QPainter
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, QPoint
 from src.utils.paths import ANIMATIONS_DIR, get_animation_path
 
 class AnimationManager:
@@ -18,6 +18,10 @@ class AnimationManager:
         self.current_state = "idle"
         self.pet_type = "cat"
         self.skin = config.get("skin") if config else "default"
+        self.last_mouse_pos = (0, 0)
+        self.cached_pixmap = None
+        self.last_size = QSize(0, 0)
+        self.main_window = self.label.window()
 
         # Таймер для процедурной SVG анимации
         self.anim_timer = QTimer()
@@ -54,10 +58,15 @@ class AnimationManager:
             return
 
         size = self.label.size()
-        pixmap = QPixmap(size)
-        pixmap.fill(Qt.transparent)
 
-        painter = QPainter(pixmap)
+        # Оптимизация: кэширование QPixmap для избежания повторных аллокаций
+        if self.cached_pixmap is None or self.last_size != size:
+            self.cached_pixmap = QPixmap(size)
+            self.last_size = size
+
+        self.cached_pixmap.fill(Qt.transparent)
+
+        painter = QPainter(self.cached_pixmap)
 
         # Процедурные трансформации в зависимости от состояния
         self.frame_counter += 1
@@ -68,9 +77,23 @@ class AnimationManager:
         painter.translate(size.width() / 2, size.height() / 2)
 
         # Слежение глазами (смещение всего котика в сторону курсора)
-        cursor_pos = self.label.mapFromGlobal(self.label.cursor().pos())
-        look_x = (cursor_pos.x() - size.width()/2) / size.width() * 5
-        look_y = (cursor_pos.y() - size.height()/2) / size.height() * 5
+        # Оптимизация: используем кешированную позицию мыши относительно окна
+        # Рассчитываем смещение на основе глобальных координат, чтобы избежать mapFromGlobal в каждом кадре
+        if not self.main_window:
+            self.main_window = self.label.window()
+
+        if self.main_window and hasattr(self.main_window, 'get_cached_pos'):
+            pet_pos = self.main_window.get_cached_pos()
+            local_mouse_x = self.last_mouse_pos[0] - pet_pos.x()
+            local_mouse_y = self.last_mouse_pos[1] - pet_pos.y()
+        else:
+            # Fallback к стандартному методу, если окно не поддерживает кэширование
+            local_mouse = self.label.mapFromGlobal(self.label.cursor().pos())
+            local_mouse_x = local_mouse.x()
+            local_mouse_y = local_mouse.y()
+
+        look_x = (local_mouse_x - size.width()/2) / size.width() * 5
+        look_y = (local_mouse_y - size.height()/2) / size.height() * 5
         painter.translate(look_x, look_y)
 
         # Базовые трансформации
@@ -101,6 +124,11 @@ class AnimationManager:
         elif self.current_state == "stretching":
             # Растягивание
             painter.scale(0.8, 1.4)
+        elif self.current_state == "eating":
+            # Наклоны головы вперед-назад при еде
+            scale_y = 1.0 + 0.1 * abs(math.sin(self.frame_counter * 0.8))
+            painter.translate(0, 10 * (scale_y - 1.0))
+            painter.scale(1.0, scale_y)
 
         painter.translate(-size.width() / 2, -size.height() / 2)
 
@@ -108,7 +136,7 @@ class AnimationManager:
         painter.restore()
         painter.end()
 
-        self.label.setPixmap(pixmap)
+        self.label.setPixmap(self.cached_pixmap)
 
     def play_state(self, state):
         self.current_state = state
@@ -150,3 +178,7 @@ class AnimationManager:
         if self.config:
             self.config.set("skin", skin_name)
         self.play_state(self.current_state)
+
+    def set_mouse_pos(self, x, y):
+        self.last_mouse_pos = (x, y)
+        self.last_mouse_pos_qpoint = QPoint(x, y)

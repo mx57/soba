@@ -30,6 +30,18 @@ class TestUtils(unittest.TestCase):
         recent = db.get_recent_activity(1)
         self.assertEqual(len(recent), 1)
         self.assertEqual(recent[0][2], "test_event")
+
+        # Тест статистики
+        db.increment_stat("test_stat", 5)
+        self.assertEqual(db.get_stat("test_stat"), 5)
+        db.increment_stat("test_stat", 2)
+        self.assertEqual(db.get_stat("test_stat"), 7)
+
+        # Тест достижений
+        db.add_achievement("test_ach")
+        unlocked = db.get_unlocked_achievements()
+        self.assertIn("test_ach", unlocked)
+
         db.close()
 
 if __name__ == '__main__':

@@ -29,6 +29,19 @@ class SettingsDialog(QDialog):
         self.stretch_spin.setValue(self.config.get("stretch_interval"))
         layout.addWidget(self.stretch_spin)
 
+        # Интервалы Pomodoro
+        layout.addWidget(QLabel("Pomodoro: работа (мин):"))
+        self.pomodoro_work_spin = QSpinBox()
+        self.pomodoro_work_spin.setRange(1, 60)
+        self.pomodoro_work_spin.setValue(self.config.get("pomodoro_work"))
+        layout.addWidget(self.pomodoro_work_spin)
+
+        layout.addWidget(QLabel("Pomodoro: отдых (мин):"))
+        self.pomodoro_break_spin = QSpinBox()
+        self.pomodoro_break_spin.setRange(1, 30)
+        self.pomodoro_break_spin.setValue(self.config.get("pomodoro_break"))
+        layout.addWidget(self.pomodoro_break_spin)
+
         # Выбор скина
         layout.addWidget(QLabel("Окрас котика:"))
         self.skin_combo = QComboBox()
@@ -52,5 +65,7 @@ class SettingsDialog(QDialog):
         self.config.set("username", self.name_edit.text())
         self.config.set("volume", self.volume_slider.value())
         self.config.set("stretch_interval", self.stretch_spin.value())
+        self.config.set("pomodoro_work", self.pomodoro_work_spin.value())
+        self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
         self.config.set("skin", self.skin_combo.currentText())
         self.accept()

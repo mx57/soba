@@ -1,6 +1,7 @@
 import time
 from pynput import mouse, keyboard
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, Signal, QThread, QTimer
+from src.utils.bonding_utils import get_level, check_achievements, ACHIEVEMENTS
 
 class InputMonitor(QThread):
     key_pressed = Signal()
@@ -34,9 +35,10 @@ class InputMonitor(QThread):
         self.running = False
 
 class InputManager(QObject):
-    def __init__(self, pet_window):
+    def __init__(self, pet_window, data_store=None):
         super().__init__()
         self.window = pet_window
+        self.db = data_store
         self.monitor = InputMonitor()
 
         self.last_key_time = 0
@@ -46,38 +48,195 @@ class InputManager(QObject):
 
         self.last_mouse_time = 0
         self.last_mouse_pos = (0, 0)
+        self.last_input_time = time.time()
+        self.last_purr_time = 0
+        self.laser_mode = False
 
         self.monitor.key_pressed.connect(self.handle_key)
         self.monitor.mouse_moved.connect(self.handle_mouse)
 
+        # Watchdog для сброса состояний при отсутствии активности и начисления очков
+        self.watchdog = QTimer(self)
+        self.watchdog.timeout.connect(self.periodic_check)
+
+        self.last_affection_points = 0
+        self.pending_points = 0
+        self.pending_stats = {
+            "total_clicks": 0,
+            "work_seconds": 0,
+            "cursor_catches": 0,
+            "total_feedings": 0,
+            "pomodoros_completed": 0,
+            "petting_count": 0,
+            "shakes_count": 0
+        }
+        self.max_kps = 0
+        self.total_clicks_cache = 0
+        self.unlocked_achievements = []
+        if self.db:
+            self.last_affection_points = self.db.get_affection_points()
+            self.unlocked_achievements = self.db.get_unlocked_achievements()
+            self.max_kps = self.db.get_stat("max_kps")
+            self.total_clicks_cache = self.db.get_stat("total_clicks")
+
     def start(self):
         self.monitor.start()
+        self.watchdog.start(500) # Проверка каждые 0.5 сек
+
+    def periodic_check(self):
+        now = time.time()
+
+        # 1. Проверка бездействия
+        # Если нет ввода более 2 секунд - сброс в idle
+        if now - self.last_input_time > 2.0:
+            if self.window.animation_manager.current_state in ["working", "overheat", "hunting", "playing", "eating"]:
+                self.window.animation_manager.play_state("idle")
+            self.typing_count = 0
+
+        # 2. Начисление очков привязанности за взаимодействие (буферизация) и статистика
+        # Начисляем очки раз в 2 секунды (каждый 4-й тик таймера 0.5с) для баланса
+        if int(now * 2) % 4 == 0:
+            state = self.window.animation_manager.current_state
+            if self.db and state in ["working", "overheat", "playing", "hunting"]:
+                self.add_points(1)
+
+            # Статистика рабочего времени (буферизация)
+            if self.db and state in ["working", "overheat"]:
+                self.pending_stats["work_seconds"] += 2
+                self.check_for_achievements()
+
+        # 3. Поддержка непрерывной охоты
+        if self.window.animation_manager.current_state == "hunting" or self.laser_mode:
+            if self.laser_mode and self.window.animation_manager.current_state not in ["hunting", "happy"]:
+                self.window.animation_manager.play_state("hunting")
+            self.window.start_hunting(self.last_mouse_pos[0], self.last_mouse_pos[1])
+
+    def add_points(self, points):
+        """Добавляет очки и проверяет повышение уровня."""
+        if not self.db:
+            return
+
+        old_level = get_level(self.last_affection_points)
+        self.pending_points += points
+
+        # Сохраняем в БД только когда накопилось 10 очков (примерно каждые 10 сек активной работы)
+        if self.pending_points >= 10:
+            self.flush_points()
+
+        # Проверка уровня (визуально можно чаще, используя буферизованные очки)
+        virtual_total = self.last_affection_points + self.pending_points
+        new_level = get_level(virtual_total)
+
+        if new_level > old_level:
+            self.flush_points() # Обязательно сбрасываем перед уведомлением
+            self.window.show_message(f"Уровень дружбы повышен: {new_level} ❤️")
+            self.window.sound_manager.play_sound("happy")
+            self.check_for_achievements()
+
+    def flush_points(self):
+        """Устарело: используйте flush_all"""
+        self.flush_all()
+
+    def flush_all(self):
+        """Записывает все накопленные данные (очки и статистику) в базу данных."""
+        if not self.db:
+            return
+
+        if self.pending_points > 0:
+            self.db.add_affection_points(self.pending_points)
+            self.last_affection_points += self.pending_points
+            self.pending_points = 0
+
+        for key, value in self.pending_stats.items():
+            if value > 0:
+                self.db.increment_stat(key, value)
+                if key == "total_clicks":
+                    self.total_clicks_cache += value
+                self.pending_stats[key] = 0
+
+        if hasattr(self.db, 'set_stat'):
+            self.db.set_stat("max_kps", self.max_kps)
+
+    def add_shake(self):
+        """Регистрирует встряхивание котика."""
+        self.pending_stats["shakes_count"] += 1
+        self.check_for_achievements()
+
+    def on_pomodoro_finished(self, mode):
+        """Слот для завершения сессии Pomodoro."""
+        if mode == "work":
+            self.pending_stats["pomodoros_completed"] += 1
+            self.check_for_achievements()
+
+    def check_for_achievements(self):
+        if not self.db:
+            return
+
+        # Получаем все данные из БД одним запросом
+        current_stats = self.db.get_all_stats()
+
+        # Обновляем значения на основе буферов в памяти
+        current_stats["bonding_points"] = self.last_affection_points + self.pending_points
+        current_stats["total_clicks"] = self.total_clicks_cache + self.pending_stats.get("total_clicks", 0)
+        current_stats["max_kps"] = self.max_kps
+
+        for key, value in self.pending_stats.items():
+            if key not in ["total_clicks"]: # Эти мы уже обработали или они не нужны
+                current_stats[key] = current_stats.get(key, 0) + value
+
+        # Проверка достижений на основе актуальных данных в памяти
+        new_ids = check_achievements(current_stats, self.unlocked_achievements)
+
+        if new_ids:
+            # Сбрасываем данные в БД только если открыто новое достижение
+            self.flush_all()
+            for ach_id in new_ids:
+                # check_achievements уже фильтрует открытые, но на всякий случай
+                if ach_id not in self.unlocked_achievements:
+                    self.unlocked_achievements.append(ach_id)
+                    self.db.add_achievement(ach_id)
+                    ach = ACHIEVEMENTS[ach_id]
+                    self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
+                    self.window.sound_manager.play_sound("happy")
 
     def handle_key(self):
         now = time.time()
+        self.last_input_time = now
+
+        if self.db:
+            self.pending_stats["total_clicks"] += 1
+            # Проверяем достижения каждые 100 кликов (виртуальных)
+            total_virtual_clicks = self.total_clicks_cache + self.pending_stats["total_clicks"]
+            if total_virtual_clicks % 100 == 0:
+                self.check_for_achievements()
+
         dt = now - self.last_key_time
-
         if dt > 1.0:
-            kps = self.typing_count / dt if dt > 0 else 0
             self.typing_count = 1
-
-            if kps > self.overheat_threshold:
-                if self.window.animation_manager.current_state != "overheat":
-                    self.window.animation_manager.play_state("overheat")
-            elif kps > self.typing_speed_threshold:
-                if self.window.animation_manager.current_state != "working":
-                    self.window.animation_manager.play_state("working")
-            else:
-                # Если скорость упала ниже порога, возвращаемся в idle
-                if self.window.animation_manager.current_state in ["working", "overheat"]:
-                    self.window.animation_manager.play_state("idle")
         else:
             self.typing_count += 1
 
         self.last_key_time = now
 
+        # Обновление макс. KPS
+        if self.typing_count > self.max_kps:
+            self.max_kps = self.typing_count
+            self.check_for_achievements()
+
+        if self.typing_count > self.overheat_threshold:
+            if self.window.animation_manager.current_state != "overheat":
+                self.window.animation_manager.play_state("overheat")
+        elif self.typing_count > self.typing_speed_threshold:
+            if self.window.animation_manager.current_state != "working":
+                self.window.animation_manager.play_state("working")
+
     def handle_mouse(self, x, y):
         now = time.time()
+        self.last_input_time = now
+
+        # Передаем позицию мыши в AnimationManager для оптимизации слежения глазами
+        self.window.animation_manager.set_mouse_pos(x, y)
+
         # Вычисляем скорость мыши
         dt = now - self.last_mouse_time
         if dt > 0:
@@ -112,4 +271,19 @@ class InputManager(QObject):
         if dist_sq_pet < 3600:
             if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
                  self.window.animation_manager.play_state("playing")
-                 self.window.sound_manager.play_sound("purr")
+                 self.pending_stats["petting_count"] += 1
+                 if self.pending_stats["petting_count"] % 5 == 0:
+                     self.check_for_achievements()
+                 if now - self.last_purr_time > 2.0:
+                     self.window.sound_manager.play_sound("purr")
+                     self.last_purr_time = now
+
+    def toggle_laser_mode(self):
+        self.laser_mode = not self.laser_mode
+        if self.laser_mode:
+            self.window.animation_manager.play_state("hunting")
+            self.window.setCursor(Qt.CrossCursor)
+        else:
+            self.window.setCursor(Qt.ArrowCursor)
+            self.window.animation_manager.play_state("idle")
+        return self.laser_mode

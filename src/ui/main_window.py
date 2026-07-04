@@ -1,4 +1,5 @@
 import sys
+import time
 from PySide6.QtWidgets import QApplication, QMainWindow, QLabel
 from PySide6.QtCore import Qt, QPoint, QSize, Signal, QPropertyAnimation, QEasingCurve, QTimer
 from src.core.animation_manager import AnimationManager
@@ -10,6 +11,7 @@ class PetWindow(QMainWindow):
     def __init__(self, config_manager=None):
         super().__init__()
         self.config = config_manager
+        self.input_manager = None
 
         # Настройка прозрачного и безрамочного окна
         self.setWindowFlags(
@@ -47,6 +49,7 @@ class PetWindow(QMainWindow):
         self.last_drag_global_pos = QPoint()
         self.is_dragging = False
         self.shake_count = 0
+        self.last_shake_time = 0
         self.original_size = QSize(100, 100)
 
         # Начальный размер
@@ -60,7 +63,16 @@ class PetWindow(QMainWindow):
 
         self.is_hidden = False
         self.original_pos = self.pos()
+        self._cached_pos = self.pos()
         self.timer_system = None
+        self.last_meow_time = 0
+
+    def moveEvent(self, event):
+        self._cached_pos = event.pos()
+        super().moveEvent(event)
+
+    def get_cached_pos(self):
+        return self._cached_pos
 
     def set_timer_system(self, timer_system):
         self.timer_system = timer_system
@@ -72,9 +84,9 @@ class PetWindow(QMainWindow):
         self.pos_animation.setDuration(1000)
 
         if not self.is_hidden:
-            self.original_pos = self.pos()
+            self.original_pos = self._cached_pos
             # Прячемся за правый край
-            dest = QPoint(screen.width() - 20, self.y())
+            dest = QPoint(screen.width() - 20, self._cached_pos.y())
             self.is_hidden = True
         else:
             dest = self.original_pos
@@ -91,10 +103,30 @@ class PetWindow(QMainWindow):
         # Целевая позиция (центр котика на курсоре)
         dest_x = target_x - self.width() // 2
         dest_y = target_y - self.height() // 2
+        dest_point = QPoint(dest_x, dest_y)
+
+        # Если уже движемся к этой точке, не перезапускаем
+        if self.pos_animation.state() == QPropertyAnimation.Running and self.pos_animation.endValue() == dest_point:
+            return
+
+        # Проверка "поимки"
+        curr_pos = self.get_cached_pos()
+        dx = curr_pos.x() - dest_x
+        dy = curr_pos.y() - dest_y
+        dist_sq = dx * dx + dy * dy
+        if dist_sq < 100: # 10 пикселей
+            if self.animation_manager.current_state == "hunting":
+                self.animation_manager.play_state("happy")
+                self.show_message("Поймал! 🐾")
+                if self.input_manager:
+                    self.input_manager.add_points(2)
+                    self.input_manager.pending_stats["cursor_catches"] += 1
+                    self.input_manager.check_for_achievements()
+            return
 
         self.pos_animation.stop()
         self.pos_animation.setDuration(500)
-        self.pos_animation.setEndValue(QPoint(dest_x, dest_y))
+        self.pos_animation.setEndValue(dest_point)
         self.pos_animation.start()
 
     def show_message(self, text, duration=3000):
@@ -107,7 +139,12 @@ class PetWindow(QMainWindow):
             0
         )
         self.message_label.show()
-        self.sound_manager.play_sound("meow")
+
+        now = time.time()
+        if now - self.last_meow_time > 2.0:
+            self.sound_manager.play_sound("meow")
+            self.last_meow_time = now
+
         QTimer.singleShot(duration, self.message_label.hide)
 
 
@@ -122,19 +159,29 @@ class PetWindow(QMainWindow):
     def mouseMoveEvent(self, event):
         if event.button() == Qt.LeftButton or self.is_dragging:
             curr_global_pos = event.globalPosition().toPoint()
+            current_time = time.time()
 
-            # Детекция встряхивания (shaking)
+            # Детекция встряхивания (shaking) - оптимизированная
             if not self.last_drag_global_pos.isNull():
                 drag_delta = curr_global_pos - self.last_drag_global_pos
-                if drag_delta.manhattanLength() > 50: # Резкое движение
+                if drag_delta.manhattanLength() > 60: # Более резкое движение
+                    # Если прошло больше 500мс с прошлого резкого движения, сбрасываем счетчик
+                    if current_time - self.last_shake_time > 0.5:
+                        self.shake_count = 0
+
                     self.shake_count += 1
-                    if self.shake_count > 5:
-                        self.animation_manager.play_state("shaking")
+                    self.last_shake_time = current_time
+
+                    if self.shake_count > 4: # 5 резких движений подряд
+                        if self.animation_manager.current_state != "shaking":
+                            self.animation_manager.play_state("shaking")
+                            if self.input_manager:
+                                self.input_manager.add_shake()
 
             self.last_drag_global_pos = curr_global_pos
 
             # Эффект Mochi Drag (растягивание при движении)
-            diff = curr_global_pos - (self.pos() + self.drag_position)
+            diff = curr_global_pos - (self._cached_pos + self.drag_position)
 
             # Более органичное растягивание (ограниченное и плавное)
             stretch_x = min(2.0, 1.0 + abs(diff.x()) / 200)

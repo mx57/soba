@@ -27,12 +27,16 @@ def main():
     timer_system.pomodoro_finished.connect(lambda mode: window.show_message(f"Pomodoro: {('отдых' if mode=='work' else 'работа')}! 🍎"))
     timer_system.start_stretch_timer()
 
-    tray = TrayMenu(window)
-
-    input_manager = InputManager(window)
+    input_manager = InputManager(window, db)
+    window.input_manager = input_manager
     input_manager.start()
 
+    timer_system.pomodoro_finished.connect(input_manager.on_pomodoro_finished)
+
+    tray = TrayMenu(window)
+
     # Cleanup on close
+    window.closed.connect(input_manager.flush_all)
     window.closed.connect(lambda: input_manager.monitor.stop())
     window.closed.connect(lambda: input_manager.monitor.wait())
     window.closed.connect(db.close)
