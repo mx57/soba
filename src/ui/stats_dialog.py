@@ -102,7 +102,7 @@ class StatsDialog(QDialog):
             scroll_layout.addWidget(ach_widget)
 
         scroll.setWidget(scroll_content)
-        scroll.setFixedHeight(150)
+        scroll.setFixedHeight(250)
         layout.addWidget(scroll)
 
         layout.addSpacing(20)

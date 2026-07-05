@@ -1,6 +1,6 @@
 import time
 from pynput import mouse, keyboard
-from PySide6.QtCore import QObject, Signal, QThread, QTimer
+from PySide6.QtCore import QObject, Signal, QThread, QTimer, Qt
 from src.utils.bonding_utils import get_level, check_achievements, ACHIEVEMENTS
 
 class InputMonitor(QThread):
@@ -92,6 +92,11 @@ class InputManager(QObject):
             if self.window.animation_manager.current_state in ["working", "overheat", "hunting", "playing", "eating"]:
                 self.window.animation_manager.play_state("idle")
             self.typing_count = 0
+
+        # Если нет ввода более 15 секунд и котик в idle - переходим в thinking
+        if now - self.last_input_time > 15.0:
+            if self.window.animation_manager.current_state == "idle":
+                self.window.animation_manager.play_state("thinking")
 
         # 2. Начисление очков привязанности за взаимодействие (буферизация) и статистика
         # Начисляем очки раз в 2 секунды (каждый 4-й тик таймера 0.5с) для баланса
@@ -199,9 +204,15 @@ class InputManager(QObject):
                     self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
                     self.window.sound_manager.play_sound("happy")
 
+    def _reset_idle_state(self):
+        """Возвращает котика в idle, если он спал или думал."""
+        if self.window.animation_manager.current_state in ["sleeping", "thinking"]:
+            self.window.animation_manager.play_state("idle")
+
     def handle_key(self):
         now = time.time()
         self.last_input_time = now
+        self._reset_idle_state()
 
         if self.db:
             self.pending_stats["total_clicks"] += 1
@@ -233,6 +244,7 @@ class InputManager(QObject):
     def handle_mouse(self, x, y):
         now = time.time()
         self.last_input_time = now
+        self._reset_idle_state()
 
         # Передаем позицию мыши в AnimationManager для оптимизации слежения глазами
         self.window.animation_manager.set_mouse_pos(x, y)
