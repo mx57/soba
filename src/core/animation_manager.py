@@ -129,6 +129,9 @@ class AnimationManager:
             scale_y = 1.0 + 0.1 * abs(math.sin(self.frame_counter * 0.8))
             painter.translate(0, 10 * (scale_y - 1.0))
             painter.scale(1.0, scale_y)
+        elif self.current_state == "thinking":
+            # Наклон и медленное покачивание
+            painter.rotate(10 + 2 * math.sin(self.frame_counter * 0.1))
 
         painter.translate(-size.width() / 2, -size.height() / 2)
 
