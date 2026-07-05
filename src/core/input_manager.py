@@ -254,33 +254,33 @@ class InputManager(QObject):
         if dt > 0:
             dx = x - self.last_mouse_pos[0]
             dy = y - self.last_mouse_pos[1]
-            # Оптимизация: используем квадрат расстояния для избежания math.sqrt
-            dist_sq = dx*dx + dy*dy
+            # Оптимизация: используем квадрат расстояния для сравнения скоростей,
+            # чтобы избежать дорогостоящего вычисления корня (sqrt/**0.5) и возведения в степень (**2)
+            dist_sq = dx * dx + dy * dy
 
-            # Если мышь движется быстро, активируем охоту
-            limit_hunt = 1500 * dt
-            limit_stop = 100 * dt
-            if self.laser_mode:
-                if self.window.animation_manager.current_state != "hunting" and self.window.animation_manager.current_state != "happy":
-                    self.window.animation_manager.play_state("hunting")
-            elif dist_sq > limit_hunt * limit_hunt: # px/sec
+            # Если мышь движется быстро, активируем охоту (1500 px/sec)
+            # speed > 1500  =>  sqrt(dist_sq)/dt > 1500  =>  dist_sq > (1500 * dt)**2
+            threshold_fast = 1500 * dt
+            if dist_sq > threshold_fast * threshold_fast:
                 if self.window.animation_manager.current_state != "hunting":
                     self.window.animation_manager.play_state("hunting")
                     self.window.start_hunting(x, y)
+            elif dist_sq < (100 * dt) * (100 * dt):
+                # Если мышь замерла (speed < 100 px/sec), выходим из охоты через пару секунд
+                if self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
+                    self.window.animation_manager.play_state("idle")
 
         self.last_mouse_pos = (x, y)
         self.last_mouse_time = now
 
-        # Проверка "поглаживания" (оптимизировано через сравнение квадратов расстояний)
-        pet_pos = self.window.get_cached_pos()
-        # Динамический расчет центра котика
-        center_x = pet_pos.x() + self.window.width() // 2
-        center_y = pet_pos.y() + self.window.height() // 2
-        dx_pet = x - center_x
-        dy_pet = y - center_y
-        dist_sq_pet = dx_pet*dx_pet + dy_pet*dy_pet
+        # Проверка "поглаживания"
+        pet_pos = self.window.pos()
+        dx_pet = x - (pet_pos.x() + 50)
+        dy_pet = y - (pet_pos.y() + 50)
+        dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
 
-        if dist_sq_pet < 3600: # 60**2
+        # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
+        if dist_sq_pet < 3600:
             if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
                  self.window.animation_manager.play_state("playing")
                  self.pending_stats["petting_count"] += 1
