@@ -67,6 +67,11 @@ class PetWindow(QMainWindow):
         self.timer_system = None
         self.last_meow_time = 0
 
+        # Таймер для скрытия сообщений
+        self.message_hide_timer = QTimer(self)
+        self.message_hide_timer.setSingleShot(True)
+        self.message_hide_timer.timeout.connect(self.message_label.hide)
+
     def moveEvent(self, event):
         self._cached_pos = event.pos()
         super().moveEvent(event)
@@ -145,7 +150,8 @@ class PetWindow(QMainWindow):
             self.sound_manager.play_sound("meow")
             self.last_meow_time = now
 
-        QTimer.singleShot(duration, self.message_label.hide)
+        self.message_hide_timer.stop()
+        self.message_hide_timer.start(duration)
 
 
     def mousePressEvent(self, event):
