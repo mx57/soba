@@ -43,6 +43,7 @@ class InputManager(QObject):
 
         self.last_key_time = 0
         self.typing_count = 0
+        self.key_timestamps = []
         self.typing_speed_threshold = 5 # Нажатий в секунду для перехода в режим kneading/working
         self.overheat_threshold = 12 # KPS для режима перегрева
 
@@ -83,20 +84,39 @@ class InputManager(QObject):
         self.monitor.start()
         self.watchdog.start(500) # Проверка каждые 0.5 сек
 
+    def _update_kps(self):
+        """Обновляет скользящее окно KPS и текущий счетчик нажатий."""
+        now = time.time()
+        self.key_timestamps = [t for t in self.key_timestamps if now - t <= 1.0]
+        self.typing_count = len(self.key_timestamps)
+
     def periodic_check(self):
         now = time.time()
         idle_time = now - self.last_input_time
+
+        # 0. Обновление скользящего окна KPS
+        self._update_kps()
 
         # 1. Проверка бездействия
         if idle_time > 2.0:
             # Если нет ввода более 2 секунд - сброс в idle
             if self.window.animation_manager.current_state in ["working", "overheat", "hunting", "playing", "eating"]:
                 self.window.animation_manager.play_state("idle")
-            self.typing_count = 0
 
             # Если бездействие более 15 секунд и котик уже в idle - переходим в thinking
             if idle_time > 15.0 and self.window.animation_manager.current_state == "idle":
                 self.window.animation_manager.play_state("thinking")
+        else:
+            # Динамическая смена состояний на основе KPS (даже если прямо сейчас нет нажатий)
+            if self.typing_count > self.overheat_threshold:
+                if self.window.animation_manager.current_state != "overheat":
+                    self.window.animation_manager.play_state("overheat")
+            elif self.typing_count > self.typing_speed_threshold:
+                if self.window.animation_manager.current_state not in ["working", "overheat"]:
+                    self.window.animation_manager.play_state("working")
+            elif self.typing_count <= self.typing_speed_threshold:
+                if self.window.animation_manager.current_state in ["working", "overheat"]:
+                    self.window.animation_manager.play_state("idle")
 
         # 2. Начисление очков привязанности за взаимодействие (буферизация) и статистика
         # Начисляем очки раз в 2 секунды (каждый 4-й тик таймера 0.5с) для баланса
@@ -221,11 +241,9 @@ class InputManager(QObject):
             if total_virtual_clicks % 100 == 0:
                 self.check_for_achievements()
 
-        dt = now - self.last_key_time
-        if dt > 1.0:
-            self.typing_count = 1
-        else:
-            self.typing_count += 1
+        # Обновление скользящего окна KPS
+        self.key_timestamps.append(now)
+        self._update_kps()
 
         self.last_key_time = now
 
@@ -274,7 +292,7 @@ class InputManager(QObject):
         self.last_mouse_time = now
 
         # Проверка "поглаживания"
-        pet_pos = self.window.pos()
+        pet_pos = self.window.get_cached_pos()
         dx_pet = x - (pet_pos.x() + 50)
         dy_pet = y - (pet_pos.y() + 50)
         dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
