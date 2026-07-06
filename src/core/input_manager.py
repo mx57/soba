@@ -43,6 +43,7 @@ class InputManager(QObject):
 
         self.last_key_time = 0
         self.typing_count = 0
+        self.key_timestamps = []
         self.typing_speed_threshold = 5 # Нажатий в секунду для перехода в режим kneading/working
         self.overheat_threshold = 12 # KPS для режима перегрева
 
@@ -83,15 +84,39 @@ class InputManager(QObject):
         self.monitor.start()
         self.watchdog.start(500) # Проверка каждые 0.5 сек
 
+    def _update_kps(self):
+        """Обновляет скользящее окно KPS и текущий счетчик нажатий."""
+        now = time.time()
+        self.key_timestamps = [t for t in self.key_timestamps if now - t <= 1.0]
+        self.typing_count = len(self.key_timestamps)
+
     def periodic_check(self):
         now = time.time()
+        idle_time = now - self.last_input_time
+
+        # 0. Обновление скользящего окна KPS
+        self._update_kps()
 
         # 1. Проверка бездействия
-        # Если нет ввода более 2 секунд - сброс в idle
-        if now - self.last_input_time > 2.0:
+        if idle_time > 2.0:
+            # Если нет ввода более 2 секунд - сброс в idle
             if self.window.animation_manager.current_state in ["working", "overheat", "hunting", "playing", "eating"]:
                 self.window.animation_manager.play_state("idle")
-            self.typing_count = 0
+
+            # Если бездействие более 15 секунд и котик уже в idle - переходим в thinking
+            if idle_time > 15.0 and self.window.animation_manager.current_state == "idle":
+                self.window.animation_manager.play_state("thinking")
+        else:
+            # Динамическая смена состояний на основе KPS (даже если прямо сейчас нет нажатий)
+            if self.typing_count > self.overheat_threshold:
+                if self.window.animation_manager.current_state != "overheat":
+                    self.window.animation_manager.play_state("overheat")
+            elif self.typing_count > self.typing_speed_threshold:
+                if self.window.animation_manager.current_state not in ["working", "overheat"]:
+                    self.window.animation_manager.play_state("working")
+            elif self.typing_count <= self.typing_speed_threshold:
+                if self.window.animation_manager.current_state in ["working", "overheat"]:
+                    self.window.animation_manager.play_state("idle")
 
         # Если нет ввода более 15 секунд и котик в idle - переходим в thinking
         if now - self.last_input_time > 15.0:
@@ -211,6 +236,7 @@ class InputManager(QObject):
 
     def handle_key(self):
         now = time.time()
+        self._reset_idle_state()
         self.last_input_time = now
         self._reset_idle_state()
 
@@ -221,11 +247,9 @@ class InputManager(QObject):
             if total_virtual_clicks % 100 == 0:
                 self.check_for_achievements()
 
-        dt = now - self.last_key_time
-        if dt > 1.0:
-            self.typing_count = 1
-        else:
-            self.typing_count += 1
+        # Обновление скользящего окна KPS
+        self.key_timestamps.append(now)
+        self._update_kps()
 
         self.last_key_time = now
 
@@ -243,6 +267,7 @@ class InputManager(QObject):
 
     def handle_mouse(self, x, y):
         now = time.time()
+        self._reset_idle_state()
         self.last_input_time = now
         self._reset_idle_state()
 
@@ -254,33 +279,33 @@ class InputManager(QObject):
         if dt > 0:
             dx = x - self.last_mouse_pos[0]
             dy = y - self.last_mouse_pos[1]
-            # Оптимизация: используем квадрат расстояния для избежания math.sqrt
-            dist_sq = dx*dx + dy*dy
+            # Оптимизация: используем квадрат расстояния для сравнения скоростей,
+            # чтобы избежать дорогостоящего вычисления корня (sqrt/**0.5) и возведения в степень (**2)
+            dist_sq = dx * dx + dy * dy
 
-            # Если мышь движется быстро, активируем охоту
-            limit_hunt = 1500 * dt
-            limit_stop = 100 * dt
-            if self.laser_mode:
-                if self.window.animation_manager.current_state != "hunting" and self.window.animation_manager.current_state != "happy":
-                    self.window.animation_manager.play_state("hunting")
-            elif dist_sq > limit_hunt * limit_hunt: # px/sec
+            # Если мышь движется быстро, активируем охоту (1500 px/sec)
+            # speed > 1500  =>  sqrt(dist_sq)/dt > 1500  =>  dist_sq > (1500 * dt)**2
+            threshold_fast = 1500 * dt
+            if dist_sq > threshold_fast * threshold_fast:
                 if self.window.animation_manager.current_state != "hunting":
                     self.window.animation_manager.play_state("hunting")
                     self.window.start_hunting(x, y)
+            elif dist_sq < (100 * dt) * (100 * dt):
+                # Если мышь замерла (speed < 100 px/sec), выходим из охоты через пару секунд
+                if self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
+                    self.window.animation_manager.play_state("idle")
 
         self.last_mouse_pos = (x, y)
         self.last_mouse_time = now
 
-        # Проверка "поглаживания" (оптимизировано через сравнение квадратов расстояний)
+        # Проверка "поглаживания"
         pet_pos = self.window.get_cached_pos()
-        # Динамический расчет центра котика
-        center_x = pet_pos.x() + self.window.width() // 2
-        center_y = pet_pos.y() + self.window.height() // 2
-        dx_pet = x - center_x
-        dy_pet = y - center_y
-        dist_sq_pet = dx_pet*dx_pet + dy_pet*dy_pet
+        dx_pet = x - (pet_pos.x() + 50)
+        dy_pet = y - (pet_pos.y() + 50)
+        dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
 
-        if dist_sq_pet < 3600: # 60**2
+        # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
+        if dist_sq_pet < 3600:
             if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
                  self.window.animation_manager.play_state("playing")
                  self.pending_stats["petting_count"] += 1
