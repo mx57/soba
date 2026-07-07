@@ -16,6 +16,7 @@ class AnimationManager:
         self.movie = None
         self.svg_renderer = None
         self.current_state = "idle"
+        self.current_anim_path = None
         self.pet_type = "cat"
         self.skin = config.get("skin") if config else "default"
         self.last_mouse_pos = (0, 0)
@@ -29,17 +30,23 @@ class AnimationManager:
         self.frame_counter = 0
 
     def set_animation(self, path):
+        # Оптимизация: не перезагружаем ту же самую анимацию
+        if self.current_anim_path == path:
+            return
+
         if self.movie:
             self.movie.stop()
             self.movie = None
 
         self.svg_renderer = None
         self.anim_timer.stop()
+        self.current_anim_path = path
 
         if path.endswith(".gif"):
             self.movie = QMovie(path)
             if not self.movie.isValid():
                 print(f"Error: Invalid GIF at {path}")
+                self.current_anim_path = None
                 return
             self.movie.setScaledSize(self.label.size())
             self.label.setMovie(self.movie)
@@ -141,7 +148,11 @@ class AnimationManager:
 
         self.label.setPixmap(self.cached_pixmap)
 
-    def play_state(self, state):
+    def play_state(self, state, force=False):
+        # Оптимизация: не перезапускаем то же самое состояние, если не требуется принудительно
+        if not force and self.current_state == state and self.current_anim_path:
+            return
+
         self.current_state = state
 
         # Если выбран скин, пробуем загрузить его SVG версию
@@ -177,10 +188,16 @@ class AnimationManager:
             self.play_state("idle") # Рефреш пиксмапа
 
     def set_skin(self, skin_name):
+        if self.skin == skin_name:
+            return
+
         self.skin = skin_name
         if self.config:
             self.config.set("skin", skin_name)
-        self.play_state(self.current_state)
+
+        # Сбрасываем путь текущей анимации, чтобы принудительно загрузить новый скин
+        self.current_anim_path = None
+        self.play_state(self.current_state, force=True)
 
     def set_mouse_pos(self, x, y):
         self.last_mouse_pos = (x, y)
