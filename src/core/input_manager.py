@@ -19,20 +19,24 @@ class InputMonitor(QThread):
         self.mouse_listener.start()
         self.keyboard_listener.start()
 
-        while self.running:
-            time.sleep(0.1)
-
-        self.mouse_listener.stop()
-        self.keyboard_listener.stop()
+        # Вместо цикла while с sleep используем join(), что эффективнее
+        self.mouse_listener.join()
+        self.keyboard_listener.join()
 
     def on_move(self, x, y):
-        self.mouse_moved.emit(x, y)
+        if self.running:
+            self.mouse_moved.emit(x, y)
 
     def on_press(self, key):
-        self.key_pressed.emit()
+        if self.running:
+            self.key_pressed.emit()
 
     def stop(self):
         self.running = False
+        if hasattr(self, 'mouse_listener'):
+            self.mouse_listener.stop()
+        if hasattr(self, 'keyboard_listener'):
+            self.keyboard_listener.stop()
 
 class InputManager(QObject):
     def __init__(self, pet_window, data_store=None):
@@ -74,11 +78,14 @@ class InputManager(QObject):
         self.max_kps = 0
         self.total_clicks_cache = 0
         self.unlocked_achievements = []
+        self.stats_cache = {}
+
         if self.db:
             self.last_affection_points = self.db.get_affection_points()
             self.unlocked_achievements = self.db.get_unlocked_achievements()
-            self.max_kps = self.db.get_stat("max_kps")
-            self.total_clicks_cache = self.db.get_stat("total_clicks")
+            self.stats_cache = self.db.get_all_stats()
+            self.max_kps = self.stats_cache.get("max_kps", 0)
+            self.total_clicks_cache = self.stats_cache.get("total_clicks", 0)
 
     def start(self):
         self.monitor.start()
@@ -93,35 +100,37 @@ class InputManager(QObject):
     def periodic_check(self):
         now = time.time()
         idle_time = now - self.last_input_time
+        current_state = self.window.animation_manager.current_state
 
         # 0. Обновление скользящего окна KPS
         self._update_kps()
 
-        # 1. Проверка бездействия
+        # 1. Проверка бездействия и переходы состояний
         if idle_time > 2.0:
-            # Если нет ввода более 2 секунд - сброс в idle
-            if self.window.animation_manager.current_state in ["working", "overheat", "hunting", "playing", "eating"]:
+            # Если нет ввода более 2 секунд - сброс активных состояний в idle
+            if current_state in ["working", "overheat", "hunting", "playing", "eating"]:
                 self.window.animation_manager.play_state("idle")
+                current_state = "idle"
 
-            # Если бездействие более 15 секунд и котик уже в idle - переходим в thinking
-            if idle_time > 15.0 and self.window.animation_manager.current_state == "idle":
-                self.window.animation_manager.play_state("thinking")
+            # Авто-сон после 120 секунд бездействия
+            if idle_time > 120.0:
+                if current_state != "sleeping":
+                    self.window.animation_manager.play_state("sleeping")
+            # Переход в 'thinking' после 15 секунд бездействия (если был в idle)
+            elif idle_time > 15.0:
+                if current_state == "idle":
+                    self.window.animation_manager.play_state("thinking")
         else:
-            # Динамическая смена состояний на основе KPS (даже если прямо сейчас нет нажатий)
+            # Динамическая смена состояний на основе KPS (при активном вводе)
             if self.typing_count > self.overheat_threshold:
-                if self.window.animation_manager.current_state != "overheat":
+                if current_state != "overheat":
                     self.window.animation_manager.play_state("overheat")
             elif self.typing_count > self.typing_speed_threshold:
-                if self.window.animation_manager.current_state not in ["working", "overheat"]:
+                if current_state not in ["working", "overheat"]:
                     self.window.animation_manager.play_state("working")
             elif self.typing_count <= self.typing_speed_threshold:
-                if self.window.animation_manager.current_state in ["working", "overheat"]:
+                if current_state in ["working", "overheat"]:
                     self.window.animation_manager.play_state("idle")
-
-        # Если нет ввода более 15 секунд и котик в idle - переходим в thinking
-        if now - self.last_input_time > 15.0:
-            if self.window.animation_manager.current_state == "idle":
-                self.window.animation_manager.play_state("thinking")
 
         # 2. Начисление очков привязанности за взаимодействие (буферизация) и статистика
         # Начисляем очки раз в 2 секунды (каждый 4-й тик таймера 0.5с) для баланса
@@ -175,6 +184,7 @@ class InputManager(QObject):
         if self.pending_points > 0:
             self.db.add_affection_points(self.pending_points)
             self.last_affection_points += self.pending_points
+            self.stats_cache["bonding_points"] = self.last_affection_points
             self.pending_points = 0
 
         for key, value in self.pending_stats.items():
@@ -182,10 +192,14 @@ class InputManager(QObject):
                 self.db.increment_stat(key, value)
                 if key == "total_clicks":
                     self.total_clicks_cache += value
+
+                # Обновляем кэш вручную вместо дорогого get_all_stats()
+                self.stats_cache[key] = self.stats_cache.get(key, 0) + value
                 self.pending_stats[key] = 0
 
         if hasattr(self.db, 'set_stat'):
             self.db.set_stat("max_kps", self.max_kps)
+            self.stats_cache["max_kps"] = self.max_kps
 
     def add_shake(self):
         """Регистрирует встряхивание котика."""
@@ -202,8 +216,8 @@ class InputManager(QObject):
         if not self.db:
             return
 
-        # Получаем все данные из БД одним запросом
-        current_stats = self.db.get_all_stats()
+        # Используем кэш вместо частого обращения к БД
+        current_stats = self.stats_cache.copy()
 
         # Обновляем значения на основе буферов в памяти
         current_stats["bonding_points"] = self.last_affection_points + self.pending_points
@@ -236,7 +250,6 @@ class InputManager(QObject):
 
     def handle_key(self):
         now = time.time()
-        self._reset_idle_state()
         self.last_input_time = now
         self._reset_idle_state()
 
@@ -267,7 +280,6 @@ class InputManager(QObject):
 
     def handle_mouse(self, x, y):
         now = time.time()
-        self._reset_idle_state()
         self.last_input_time = now
         self._reset_idle_state()
 
