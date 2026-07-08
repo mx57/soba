@@ -116,6 +116,29 @@ class DataStore:
         cursor.execute('INSERT OR REPLACE INTO stats (key, value) VALUES (?, ?)', (key, value))
         self.conn.commit()
 
+    def update_stats_batch(self, points, stats_dict, max_kps):
+        """Обновляет очки привязанности, статистику и макс. KPS в одной транзакции."""
+        if not self.conn:
+            self.init_db()
+
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('BEGIN TRANSACTION')
+
+            if points > 0:
+                cursor.execute('UPDATE stats SET value = value + ? WHERE key = "bonding_points"', (points,))
+
+            for key, value in stats_dict.items():
+                if value > 0:
+                    cursor.execute('UPDATE stats SET value = value + ? WHERE key = ?', (value, key))
+
+            cursor.execute('INSERT OR REPLACE INTO stats (key, value) VALUES ("max_kps", ?)', (max_kps,))
+
+            self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Error in update_stats_batch: {e}")
+
     def add_achievement(self, ach_id):
         if not self.conn:
             self.init_db()

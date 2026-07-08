@@ -170,6 +170,8 @@ class InputManager(QObject):
             self.flush_points() # Обязательно сбрасываем перед уведомлением
             self.window.show_message(f"Уровень дружбы повышен: {new_level} ❤️")
             self.window.sound_manager.play_sound("happy")
+            if self.db:
+                self.db.log_event("level_up", f"Достигнут уровень {new_level}")
             self.check_for_achievements()
 
     def flush_points(self):
@@ -181,25 +183,31 @@ class InputManager(QObject):
         if not self.db:
             return
 
-        if self.pending_points > 0:
-            self.db.add_affection_points(self.pending_points)
-            self.last_affection_points += self.pending_points
-            self.stats_cache["bonding_points"] = self.last_affection_points
-            self.pending_points = 0
+        if hasattr(self.db, 'update_stats_batch'):
+            self.db.update_stats_batch(self.pending_points, self.pending_stats, self.max_kps)
+        else:
+            # Fallback для старой версии БД
+            if self.pending_points > 0:
+                self.db.add_affection_points(self.pending_points)
+            for key, value in self.pending_stats.items():
+                if value > 0:
+                    self.db.increment_stat(key, value)
+            if hasattr(self.db, 'set_stat'):
+                self.db.set_stat("max_kps", self.max_kps)
+
+        # Обновляем локальные кэши
+        self.last_affection_points += self.pending_points
+        self.stats_cache["bonding_points"] = self.last_affection_points
+        self.pending_points = 0
 
         for key, value in self.pending_stats.items():
             if value > 0:
-                self.db.increment_stat(key, value)
                 if key == "total_clicks":
                     self.total_clicks_cache += value
-
-                # Обновляем кэш вручную вместо дорогого get_all_stats()
                 self.stats_cache[key] = self.stats_cache.get(key, 0) + value
                 self.pending_stats[key] = 0
 
-        if hasattr(self.db, 'set_stat'):
-            self.db.set_stat("max_kps", self.max_kps)
-            self.stats_cache["max_kps"] = self.max_kps
+        self.stats_cache["max_kps"] = self.max_kps
 
     def add_shake(self):
         """Регистрирует встряхивание котика."""
@@ -240,6 +248,7 @@ class InputManager(QObject):
                     self.unlocked_achievements.append(ach_id)
                     self.db.add_achievement(ach_id)
                     ach = ACHIEVEMENTS[ach_id]
+                    self.db.log_event("achievement", f"Открыто достижение: {ach['title']}")
                     self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
                     self.window.sound_manager.play_sound("happy")
 
