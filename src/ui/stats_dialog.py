@@ -1,4 +1,6 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout, QScrollArea, QWidget
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QProgressBar,
+                             QPushButton, QHBoxLayout, QScrollArea, QWidget,
+                             QTabWidget, QListWidget, QListWidgetItem)
 from PySide6.QtCore import Qt
 from src.utils.bonding_utils import get_level_info, ACHIEVEMENTS
 
@@ -6,10 +8,32 @@ class StatsDialog(QDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
         self.db = db
-        self.setWindowTitle("Статистика привязанности")
-        self.setFixedWidth(300)
+        self.setWindowTitle("Статистика Котика")
+        self.setFixedWidth(350)
+        self.setFixedHeight(500)
 
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+
+        # Вкладка Прогресса
+        self.progress_tab = QWidget()
+        self.setup_progress_tab()
+        self.tabs.addTab(self.progress_tab, "Прогресс")
+
+        # Вкладка Истории
+        self.history_tab = QWidget()
+        self.setup_history_tab()
+        self.tabs.addTab(self.history_tab, "История")
+
+        # Кнопка закрытия
+        close_btn = QPushButton("Закрыть")
+        close_btn.clicked.connect(self.accept)
+        main_layout.addWidget(close_btn)
+
+    def setup_progress_tab(self):
+        layout = QVBoxLayout(self.progress_tab)
 
         points = self.db.get_affection_points()
         level, title, points_in_level, points_for_next_level = get_level_info(points)
@@ -17,7 +41,7 @@ class StatsDialog(QDialog):
         # Заголовок
         title_label = QLabel(f"Уровень {level}: {title}")
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 5px;")
         layout.addWidget(title_label)
 
         # Общие очки
@@ -27,9 +51,9 @@ class StatsDialog(QDialog):
 
         # Макс скорость печати
         max_kps = self.db.get_stat("max_kps")
-        kps_label = QLabel(f"Макс. скорость: {max_kps} кл/сек ⚡")
+        kps_label = QLabel(f"Рекорд скорости: {max_kps} кл/сек ⚡")
         kps_label.setAlignment(Qt.AlignCenter)
-        kps_label.setStyleSheet("color: #555; font-size: 11px;")
+        kps_label.setStyleSheet("color: #555; font-size: 11px; margin-bottom: 5px;")
         layout.addWidget(kps_label)
 
         # Прогресс бар
@@ -43,9 +67,7 @@ class StatsDialog(QDialog):
         else:
             layout.addWidget(QLabel("Максимальный уровень достигнут! 🎉"))
 
-        layout.addSpacing(20)
-
-        # Раздел достижений
+        layout.addSpacing(10)
         layout.addWidget(QLabel("<b>Достижения:</b>"))
 
         scroll = QScrollArea()
@@ -72,7 +94,6 @@ class StatsDialog(QDialog):
             # Расчет прогресса
             progress_text = ""
             if not is_unlocked and 'goal' in ach_info and 'stat' in ach_info:
-                # Если у нас есть InputManager, берем актуальные данные (включая буфер)
                 if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
                     im = self.parent().input_manager
                     if ach_info['stat'] == 'bonding_points':
@@ -102,12 +123,35 @@ class StatsDialog(QDialog):
             scroll_layout.addWidget(ach_widget)
 
         scroll.setWidget(scroll_content)
-        scroll.setFixedHeight(250)
         layout.addWidget(scroll)
 
-        layout.addSpacing(20)
+    def setup_history_tab(self):
+        layout = QVBoxLayout(self.history_tab)
 
-        # Кнопка закрытия
-        close_btn = QPushButton("Закрыть")
-        close_btn.clicked.connect(self.accept)
-        layout.addWidget(close_btn)
+        layout.addWidget(QLabel("<b>Последние события:</b>"))
+
+        self.history_list = QListWidget()
+
+        events = self.db.get_recent_activity(30)
+        for event in events:
+            # event = (id, timestamp, event_type, description)
+            _, timestamp, event_type, desc = event
+
+            # Красивое форматирование времени (убираем секунды)
+            time_str = timestamp.split(' ')[1][:5] if ' ' in timestamp else timestamp
+
+            icon = "ℹ️"
+            if event_type == "level_up": icon = "🆙"
+            elif event_type == "achievement": icon = "🏆"
+            elif event_type == "feeding": icon = "🐟"
+            elif event_type == "pomodoro_start": icon = "⏱"
+            elif event_type == "app_start": icon = "🚀"
+
+            item_text = f"[{time_str}] {icon} {desc if desc else event_type}"
+            item = QListWidgetItem(item_text)
+            self.history_list.addItem(item)
+
+        layout.addWidget(self.history_list)
+
+        if not events:
+            layout.addWidget(QLabel("История пока пуста..."))
