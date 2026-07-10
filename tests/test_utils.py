@@ -42,6 +42,13 @@ class TestUtils(unittest.TestCase):
         unlocked = db.get_unlocked_achievements()
         self.assertIn("test_ach", unlocked)
 
+        # Тест пакетного обновления
+        db.update_stats_batch(points=10, stats_dict={"total_clicks": 100, "new_stat": 1}, max_kps=20)
+        self.assertEqual(db.get_affection_points(), 10)
+        self.assertEqual(db.get_stat("total_clicks"), 100)
+        self.assertEqual(db.get_stat("new_stat"), 1)
+        self.assertEqual(db.get_stat("max_kps"), 20)
+
         db.close()
 
 if __name__ == '__main__':
