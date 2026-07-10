@@ -176,6 +176,7 @@ class InputManager(QObject):
             self.db.log_event("level_up", f"Новый уровень: {new_level}")
             self.window.show_message(f"Уровень дружбы повышен: {new_level} ❤️")
             self.window.sound_manager.play_sound("happy")
+            self.db.log_event("level_up", f"Уровень повышен до {new_level}")
             self.check_for_achievements()
 
     def flush_points(self):
@@ -254,6 +255,7 @@ class InputManager(QObject):
                     self.db.log_event("achievement", f"Получено достижение: {ach['title']}")
                     self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
                     self.window.sound_manager.play_sound("happy")
+                    self.db.log_event("achievement", f"Разблокировано: {ach['title']}")
 
     def _reset_idle_state(self):
         """Возвращает котика в idle, если он спал или думал."""
@@ -324,8 +326,10 @@ class InputManager(QObject):
 
         # Проверка "поглаживания"
         pet_pos = self.window.get_cached_pos()
-        dx_pet = x - (pet_pos.x() + 50)
-        dy_pet = y - (pet_pos.y() + 50)
+        center_x = pet_pos.x() + self.window.width() // 2
+        center_y = pet_pos.y() + self.window.height() // 2
+        dx_pet = x - center_x
+        dy_pet = y - center_y
         dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
 
         # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)

@@ -42,16 +42,14 @@ class StatsDialog(QDialog):
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 5px;")
         layout.addWidget(title_label)
 
-        # Общие очки
-        points_label = QLabel(f"Всего очков: {points} ❤️")
-        points_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(points_label)
+        # Общие очки и KPS в одной строке
+        stats_row = QHBoxLayout()
+        points_label = QLabel(f"Всего: {points} ❤️")
 
-        # Макс скорость печати
         max_kps = self.db.get_stat("max_kps")
-        kps_label = QLabel(f"Макс. скорость: {max_kps} кл/сек ⚡")
+        kps_label = QLabel(f"Рекорд скорости: {max_kps} кл/сек ⚡")
         kps_label.setAlignment(Qt.AlignCenter)
-        kps_label.setStyleSheet("color: #555; font-size: 11px;")
+        kps_label.setStyleSheet("color: #555; font-size: 11px; margin-bottom: 5px;")
         layout.addWidget(kps_label)
 
         # Прогресс бар
@@ -66,8 +64,6 @@ class StatsDialog(QDialog):
             layout.addWidget(QLabel("Максимальный уровень достигнут! 🎉"))
 
         layout.addSpacing(10)
-
-        # Раздел достижений
         layout.addWidget(QLabel("<b>Достижения:</b>"))
 
         scroll = QScrollArea()
@@ -94,7 +90,6 @@ class StatsDialog(QDialog):
             # Расчет прогресса
             progress_text = ""
             if not is_unlocked and 'goal' in ach_info and 'stat' in ach_info:
-                # Если у нас есть InputManager, берем актуальные данные (включая буфер)
                 if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
                     im = self.parent().input_manager
                     if ach_info['stat'] == 'bonding_points':
