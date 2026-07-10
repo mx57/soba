@@ -126,7 +126,7 @@ class TrayMenu(QObject):
             self.window.timer_system.start_pomodoro("break")
             self.window.show_message("Отдыхаем! ☕")
             if self.window.input_manager and self.window.input_manager.db:
-                self.window.input_manager.db.log_event("pomodoro_break", "Начат перерыв")
+                self.window.input_manager.db.log_event("pomodoro_start", "Начата сессия отдыха")
 
     def show_settings(self, checked=False):
         dialog = SettingsDialog(self.window.config, self.window)
@@ -152,7 +152,7 @@ class TrayMenu(QObject):
             self.window.show_message("Мням! +5 ❤️")
             self.window.input_manager.pending_stats["total_feedings"] += 1
             if self.window.input_manager.db:
-                self.window.input_manager.db.log_event("feed", "Котик покормлен")
+                self.window.input_manager.db.log_event("feeding", "Котик покормлен")
             self.window.input_manager.check_for_achievements()
 
     def toggle_laser(self, checked):

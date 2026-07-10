@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QProgressBar,
-                             QPushButton, QHBoxLayout, QScrollArea, QWidget, QTabWidget, QListWidget, QListWidgetItem)
+                             QPushButton, QHBoxLayout, QScrollArea, QWidget,
+                             QTabWidget, QListWidget, QListWidgetItem)
 from PySide6.QtCore import Qt
 from src.utils.bonding_utils import get_level_info, ACHIEVEMENTS
 
@@ -9,8 +10,30 @@ class StatsDialog(QDialog):
         self.db = db
         self.setWindowTitle("Статистика Котика")
         self.setFixedWidth(350)
+        self.setFixedHeight(500)
 
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+
+        # Вкладка Прогресса
+        self.progress_tab = QWidget()
+        self.setup_progress_tab()
+        self.tabs.addTab(self.progress_tab, "Прогресс")
+
+        # Вкладка Истории
+        self.history_tab = QWidget()
+        self.setup_history_tab()
+        self.tabs.addTab(self.history_tab, "История")
+
+        # Кнопка закрытия
+        close_btn = QPushButton("Закрыть")
+        close_btn.clicked.connect(self.accept)
+        main_layout.addWidget(close_btn)
+
+    def setup_progress_tab(self):
+        layout = QVBoxLayout(self.progress_tab)
 
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
@@ -47,13 +70,10 @@ class StatsDialog(QDialog):
         points_label = QLabel(f"Всего: {points} ❤️")
 
         max_kps = self.db.get_stat("max_kps")
-        kps_label = QLabel(f"Макс: {max_kps} кл/сек ⚡")
-        kps_label.setStyleSheet("color: #555;")
-
-        stats_row.addWidget(points_label)
-        stats_row.addStretch()
-        stats_row.addWidget(kps_label)
-        layout.addLayout(stats_row)
+        kps_label = QLabel(f"Рекорд скорости: {max_kps} кл/сек ⚡")
+        kps_label.setAlignment(Qt.AlignCenter)
+        kps_label.setStyleSheet("color: #555; font-size: 11px; margin-bottom: 5px;")
+        layout.addWidget(kps_label)
 
         # Прогресс бар
         if points_for_next_level > 0:
@@ -67,8 +87,6 @@ class StatsDialog(QDialog):
             layout.addWidget(QLabel("Максимальный уровень достигнут! 🎉"))
 
         layout.addSpacing(10)
-
-        # Раздел достижений
         layout.addWidget(QLabel("<b>Достижения:</b>"))
 
         scroll = QScrollArea()
@@ -124,26 +142,35 @@ class StatsDialog(QDialog):
             scroll_layout.addWidget(ach_widget)
 
         scroll.setWidget(scroll_content)
-        scroll.setFixedHeight(200)
         layout.addWidget(scroll)
 
     def setup_history_tab(self):
         layout = QVBoxLayout(self.history_tab)
 
-        history_list = QListWidget()
-        activities = self.db.get_recent_activity(20)
+        layout.addWidget(QLabel("<b>Последние события:</b>"))
 
-        for activity in activities:
-            # activity format: (id, timestamp, event_type, description)
-            _, ts, event, desc = activity
-            # Убираем секунды для компактности
-            time_str = ts.split(" ")[1][:5] if " " in ts else ts
+        self.history_list = QListWidget()
 
-            item = QListWidgetItem(f"[{time_str}] {desc}")
-            item.setToolTip(f"{ts}\nТип: {event}")
-            history_list.addItem(item)
+        events = self.db.get_recent_activity(30)
+        for event in events:
+            # event = (id, timestamp, event_type, description)
+            _, timestamp, event_type, desc = event
 
-        if not activities:
-            history_list.addItem("История пока пуста...")
+            # Красивое форматирование времени (убираем секунды)
+            time_str = timestamp.split(' ')[1][:5] if ' ' in timestamp else timestamp
 
-        layout.addWidget(history_list)
+            icon = "ℹ️"
+            if event_type == "level_up": icon = "🆙"
+            elif event_type == "achievement": icon = "🏆"
+            elif event_type == "feeding": icon = "🐟"
+            elif event_type == "pomodoro_start": icon = "⏱"
+            elif event_type == "app_start": icon = "🚀"
+
+            item_text = f"[{time_str}] {icon} {desc if desc else event_type}"
+            item = QListWidgetItem(item_text)
+            self.history_list.addItem(item)
+
+        layout.addWidget(self.history_list)
+
+        if not events:
+            layout.addWidget(QLabel("История пока пуста..."))
