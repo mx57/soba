@@ -117,6 +117,8 @@ class TrayMenu(QObject):
     def start_work_timer(self, checked=False):
         if self.window.timer_system:
             self.window.timer_system.start_pomodoro("work")
+            if self.window.input_manager and self.window.input_manager.db:
+                self.window.input_manager.db.log_event("pomodoro_start", "Начало работы")
             self.window.show_message("Пора работать! 🛠")
             if self.window.input_manager and self.window.input_manager.db:
                 self.window.input_manager.db.log_event("pomodoro_start", "Начата сессия работы")
@@ -124,6 +126,8 @@ class TrayMenu(QObject):
     def start_break_timer(self, checked=False):
         if self.window.timer_system:
             self.window.timer_system.start_pomodoro("break")
+            if self.window.input_manager and self.window.input_manager.db:
+                self.window.input_manager.db.log_event("pomodoro_start", "Перерыв")
             self.window.show_message("Отдыхаем! ☕")
             if self.window.input_manager and self.window.input_manager.db:
                 self.window.input_manager.db.log_event("pomodoro_start", "Начата сессия отдыха")
@@ -148,6 +152,8 @@ class TrayMenu(QObject):
     def feed_pet(self, checked=False):
         self.window.animation_manager.play_state("eating")
         if self.window.input_manager:
+            if self.window.input_manager.db:
+                self.window.input_manager.db.log_event("feeding", "Котик покормлен")
             self.window.input_manager.add_points(5)
             self.window.show_message("Мням! +5 ❤️")
             self.window.input_manager.pending_stats["total_feedings"] += 1

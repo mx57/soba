@@ -116,23 +116,24 @@ class DataStore:
         cursor.execute('INSERT OR REPLACE INTO stats (key, value) VALUES (?, ?)', (key, value))
         self.conn.commit()
 
-    def update_stats_batch(self, points, stats_dict, max_kps):
-        """Обновляет очки привязанности, статистику и макс. KPS в одной транзакции."""
+    def update_stats_batch(self, points=0, stats_dict=None, max_kps=None):
+        """Выполняет пакетное обновление очков и статистики в одной транзакции."""
         if not self.conn:
             self.init_db()
 
+        cursor = self.conn.cursor()
         try:
-            cursor = self.conn.cursor()
-            cursor.execute('BEGIN TRANSACTION')
-
             if points > 0:
                 cursor.execute('UPDATE stats SET value = value + ? WHERE key = "bonding_points"', (points,))
 
-            for key, value in stats_dict.items():
-                if value > 0:
-                    cursor.execute('UPDATE stats SET value = value + ? WHERE key = ?', (value, key))
+            if stats_dict:
+                for key, value in stats_dict.items():
+                    if value > 0:
+                        cursor.execute('INSERT OR IGNORE INTO stats (key, value) VALUES (?, 0)', (key,))
+                        cursor.execute('UPDATE stats SET value = value + ? WHERE key = ?', (value, key))
 
-            cursor.execute('INSERT OR REPLACE INTO stats (key, value) VALUES ("max_kps", ?)', (max_kps,))
+            if max_kps is not None:
+                cursor.execute('INSERT OR REPLACE INTO stats (key, value) VALUES (?, ?)', ("max_kps", max_kps))
 
             self.conn.commit()
         except Exception as e:
