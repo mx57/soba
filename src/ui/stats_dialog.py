@@ -35,6 +35,27 @@ class StatsDialog(QDialog):
     def setup_progress_tab(self):
         layout = QVBoxLayout(self.progress_tab)
 
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs)
+
+        # Вкладка 1: Прогресс и Достижения
+        self.progress_tab = QWidget()
+        self.setup_progress_tab()
+        self.tabs.addTab(self.progress_tab, "🎯 Прогресс")
+
+        # Вкладка 2: История активности
+        self.history_tab = QWidget()
+        self.setup_history_tab()
+        self.tabs.addTab(self.history_tab, "📜 История")
+
+        # Кнопка закрытия
+        close_btn = QPushButton("Закрыть")
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+    def setup_progress_tab(self):
+        layout = QVBoxLayout(self.progress_tab)
+
         points = self.db.get_affection_points()
         level, title, points_in_level, points_for_next_level = get_level_info(points)
 
@@ -44,12 +65,10 @@ class StatsDialog(QDialog):
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 5px;")
         layout.addWidget(title_label)
 
-        # Общие очки
-        points_label = QLabel(f"Всего очков: {points} ❤️")
-        points_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(points_label)
+        # Общие очки и KPS в одной строке
+        stats_row = QHBoxLayout()
+        points_label = QLabel(f"Всего: {points} ❤️")
 
-        # Макс скорость печати
         max_kps = self.db.get_stat("max_kps")
         kps_label = QLabel(f"Рекорд скорости: {max_kps} кл/сек ⚡")
         kps_label.setAlignment(Qt.AlignCenter)
