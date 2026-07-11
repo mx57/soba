@@ -5,6 +5,7 @@ from PySide6.QtCore import QObject
 from src.utils.paths import TRAY_ICON_PATH, get_animation_path
 from src.ui.settings_dialog import SettingsDialog
 from src.ui.stats_dialog import StatsDialog
+from src.utils.bonding_utils import CAT_SKINS
 
 class TrayMenu(QObject):
     def __init__(self, pet_window):
@@ -50,18 +51,7 @@ class TrayMenu(QObject):
 
         # Выбор скина
         skin_menu = QMenu("Выбрать окрас", self.menu)
-        skins = {
-            "Стандартный": "default",
-            "Рыжий": "orange",
-            "Сиамский": "siamese",
-            "Бежевый": "ginger",
-            "Розовый": "pink",
-            "Белый": "white",
-            "Серый": "gray",
-            "Трехцветный": "calico",
-            "Черный": "black"
-        }
-        for name, skin_id in skins.items():
+        for skin_id, name in CAT_SKINS.items():
             action = QAction(name, self)
             action.triggered.connect(lambda checked=False, sid=skin_id: self.window.animation_manager.set_skin(sid))
             skin_menu.addAction(action)
@@ -117,8 +107,6 @@ class TrayMenu(QObject):
     def start_work_timer(self, checked=False):
         if self.window.timer_system:
             self.window.timer_system.start_pomodoro("work")
-            if self.window.input_manager and self.window.input_manager.db:
-                self.window.input_manager.db.log_event("pomodoro_start", "Начало работы")
             self.window.show_message("Пора работать! 🛠")
             if self.window.input_manager and self.window.input_manager.db:
                 self.window.input_manager.db.log_event("pomodoro_start", "Начата сессия работы")
@@ -126,8 +114,6 @@ class TrayMenu(QObject):
     def start_break_timer(self, checked=False):
         if self.window.timer_system:
             self.window.timer_system.start_pomodoro("break")
-            if self.window.input_manager and self.window.input_manager.db:
-                self.window.input_manager.db.log_event("pomodoro_start", "Перерыв")
             self.window.show_message("Отдыхаем! ☕")
             if self.window.input_manager and self.window.input_manager.db:
                 self.window.input_manager.db.log_event("pomodoro_start", "Начата сессия отдыха")
@@ -135,8 +121,9 @@ class TrayMenu(QObject):
     def show_settings(self, checked=False):
         dialog = SettingsDialog(self.window.config, self.window)
         if dialog.exec():
-            # Обновляем скин в реальном времени
+            # Обновляем скин и прозрачность в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
+            self.window.set_opacity(self.window.config.get("opacity"))
             # Перезапускаем таймер растяжки с новым интервалом
             if self.window.timer_system:
                 self.window.timer_system.restart_stretch_timer()
@@ -152,8 +139,6 @@ class TrayMenu(QObject):
     def feed_pet(self, checked=False):
         self.window.animation_manager.play_state("eating")
         if self.window.input_manager:
-            if self.window.input_manager.db:
-                self.window.input_manager.db.log_event("feeding", "Котик покормлен")
             self.window.input_manager.add_points(5)
             self.window.show_message("Мням! +5 ❤️")
             self.window.input_manager.pending_stats["total_feedings"] += 1
