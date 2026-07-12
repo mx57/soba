@@ -22,6 +22,13 @@ class SettingsDialog(QDialog):
         self.volume_slider.setValue(self.config.get("volume"))
         layout.addWidget(self.volume_slider)
 
+        # Прозрачность
+        layout.addWidget(QLabel("Прозрачность окна:"))
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(20, 100)
+        self.opacity_slider.setValue(self.config.get("opacity"))
+        layout.addWidget(self.opacity_slider)
+
         # Интервал растяжки
         layout.addWidget(QLabel("Интервал растяжки (мин):"))
         self.stretch_spin = QSpinBox()
@@ -64,6 +71,7 @@ class SettingsDialog(QDialog):
     def save_settings(self):
         self.config.set("username", self.name_edit.text())
         self.config.set("volume", self.volume_slider.value())
+        self.config.set("opacity", self.opacity_slider.value())
         self.config.set("stretch_interval", self.stretch_spin.value())
         self.config.set("pomodoro_work", self.pomodoro_work_spin.value())
         self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
