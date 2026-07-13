@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox
 from PySide6.QtCore import Qt
+from src.utils.bonding_utils import CAT_SKINS
 
 class SettingsDialog(QDialog):
     def __init__(self, config, parent=None):
@@ -45,9 +46,15 @@ class SettingsDialog(QDialog):
         # Выбор скина
         layout.addWidget(QLabel("Окрас котика:"))
         self.skin_combo = QComboBox()
-        skins = ["default", "orange", "siamese", "ginger", "pink", "white", "gray", "calico", "black"]
-        self.skin_combo.addItems(skins)
-        self.skin_combo.setCurrentText(self.config.get("skin"))
+        for skin_id, name in CAT_SKINS.items():
+            self.skin_combo.addItem(name, skin_id)
+
+        # Установка текущего значения
+        current_skin = self.config.get("skin")
+        index = self.skin_combo.findData(current_skin)
+        if index >= 0:
+            self.skin_combo.setCurrentIndex(index)
+
         layout.addWidget(self.skin_combo)
 
         # Кнопки
@@ -67,5 +74,5 @@ class SettingsDialog(QDialog):
         self.config.set("stretch_interval", self.stretch_spin.value())
         self.config.set("pomodoro_work", self.pomodoro_work_spin.value())
         self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
-        self.config.set("skin", self.skin_combo.currentText())
+        self.config.set("skin", self.skin_combo.currentData())
         self.accept()

@@ -88,8 +88,10 @@ class StatsDialog(QDialog):
             ach_item_layout.addWidget(item_label)
 
             # Расчет прогресса
-            progress_text = ""
-            if not is_unlocked and 'goal' in ach_info and 'stat' in ach_info:
+            current_val = 0
+            goal = ach_info.get('goal', 1)
+
+            if 'stat' in ach_info:
                 if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
                     im = self.parent().input_manager
                     if ach_info['stat'] == 'bonding_points':
@@ -98,22 +100,46 @@ class StatsDialog(QDialog):
                         current_val = im.total_clicks_cache + im.pending_stats.get('total_clicks', 0)
                     elif ach_info['stat'] == 'max_kps':
                         current_val = im.max_kps
+                    elif ach_info['stat'] == 'level':
+                         current_val, _, _, _ = get_level_info(im.last_affection_points + im.pending_points)
                     else:
                         current_val = self.db.get_stat(ach_info['stat']) + im.pending_stats.get(ach_info['stat'], 0)
                 else:
-                    current_val = self.db.get_stat(ach_info['stat'])
+                    if ach_info['stat'] == 'level':
+                        current_val, _, _, _ = get_level_info(points)
+                    else:
+                        current_val = self.db.get_stat(ach_info['stat'])
 
-                if ach_info['stat'] == 'level':
-                    current_val, _, _, _ = get_level_info(points)
+            info_container = QWidget()
+            info_v_layout = QVBoxLayout(info_container)
+            info_v_layout.setContentsMargins(0, 0, 0, 0)
+            info_v_layout.setSpacing(2)
 
-                goal = ach_info['goal']
-                if goal > 0:
-                    progress_text = f" <span style='color: #888;'>({current_val}/{goal})</span>"
-
-            info_label = QLabel(f"<b>{ach_info['title']}</b>{progress_text}<br/><small>{ach_info['desc']}</small>")
+            info_label = QLabel(f"<b>{ach_info['title']}</b><br/><small>{ach_info['desc']}</small>")
             if not is_unlocked:
                 info_label.setStyleSheet("color: #888;")
-            ach_item_layout.addWidget(info_label)
+            info_v_layout.addWidget(info_label)
+
+            if not is_unlocked:
+                progress_bar = QProgressBar()
+                progress_bar.setFixedHeight(8)
+                progress_bar.setTextVisible(False)
+                progress_bar.setMaximum(goal)
+                progress_bar.setValue(min(current_val, goal))
+                progress_bar.setStyleSheet("""
+                    QProgressBar {
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        background-color: #f0f0f0;
+                    }
+                    QProgressBar::chunk {
+                        background-color: #4CAF50;
+                        border-radius: 3px;
+                    }
+                """)
+                info_v_layout.addWidget(progress_bar)
+
+            ach_item_layout.addWidget(info_container)
             ach_item_layout.addStretch()
 
             scroll_layout.addWidget(ach_widget)

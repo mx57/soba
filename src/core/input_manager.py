@@ -1,4 +1,5 @@
 import time
+import math
 from pynput import mouse, keyboard
 from PySide6.QtCore import QObject, Signal, QThread, QTimer, Qt
 from src.utils.bonding_utils import get_level, check_achievements, ACHIEVEMENTS
@@ -61,6 +62,11 @@ class InputManager(QObject):
         self.last_input_time = time.time()
         self.last_purr_time = 0
         self.laser_mode = False
+
+        # Данные для логики поглаживания
+        self.petting_last_pos = (0, 0)
+        self.petting_total_dist = 0
+        self.petting_last_increment_time = 0
 
         self.monitor.key_pressed.connect(self.handle_key)
         self.monitor.mouse_moved.connect(self.handle_mouse)
@@ -165,23 +171,18 @@ class InputManager(QObject):
 
         # Сохраняем в БД только когда накопилось 10 очков (примерно каждые 10 сек активной работы)
         if self.pending_points >= 10:
-            self.flush_points()
+            self.flush_all()
 
         # Проверка уровня (визуально можно чаще, используя буферизованные очки)
         virtual_total = self.last_affection_points + self.pending_points
         new_level = get_level(virtual_total)
 
         if new_level > old_level:
-            self.flush_points() # Обязательно сбрасываем перед уведомлением
-            self.db.log_event("level_up", f"Новый уровень: {new_level}")
+            self.flush_all() # Обязательно сбрасываем перед уведомлением
             self.window.show_message(f"Уровень дружбы повышен: {new_level} ❤️")
             self.window.sound_manager.play_sound("happy")
             self.db.log_event("level_up", f"Уровень повышен до {new_level}")
             self.check_for_achievements()
-
-    def flush_points(self):
-        """Устарело: используйте flush_all"""
-        self.flush_all()
 
     def flush_all(self):
         """Записывает все накопленные данные (очки и статистику) в базу данных."""
@@ -252,7 +253,6 @@ class InputManager(QObject):
                     self.unlocked_achievements.append(ach_id)
                     self.db.add_achievement(ach_id)
                     ach = ACHIEVEMENTS[ach_id]
-                    self.db.log_event("achievement", f"Получено достижение: {ach['title']}")
                     self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
                     self.window.sound_manager.play_sound("happy")
                     self.db.log_event("achievement", f"Разблокировано: {ach['title']}")
@@ -334,14 +334,34 @@ class InputManager(QObject):
 
         # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
         if dist_sq_pet < 3600:
-            if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
-                 self.window.animation_manager.play_state("playing")
-                 self.pending_stats["petting_count"] += 1
-                 if self.pending_stats["petting_count"] % 5 == 0:
-                     self.check_for_achievements()
-                 if now - self.last_purr_time > 2.0:
-                     self.window.sound_manager.play_sound("purr")
-                     self.last_purr_time = now
+            if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking", "sleeping"]:
+                 if self.window.animation_manager.current_state != "playing":
+                    self.window.animation_manager.play_state("playing")
+
+                 # Улучшенная логика: считаем поглаживание только при движении мыши над котиком
+                 if self.petting_last_pos != (0, 0):
+                    pdx = x - self.petting_last_pos[0]
+                    pdy = y - self.petting_last_pos[1]
+                    self.petting_total_dist += math.sqrt(pdx*pdx + pdy*pdy)
+
+                 self.petting_last_pos = (x, y)
+
+                 # Если протащили мышь на 30 пикселей и прошло 500мс с прошлого раза
+                 if self.petting_total_dist > 30 and (now - self.petting_last_increment_time) > 0.5:
+                    self.pending_stats["petting_count"] += 1
+                    self.petting_total_dist = 0
+                    self.petting_last_increment_time = now
+
+                    if self.pending_stats["petting_count"] % 5 == 0:
+                        self.check_for_achievements()
+
+                    if now - self.last_purr_time > 2.0:
+                        self.window.sound_manager.play_sound("purr")
+                        self.last_purr_time = now
+        else:
+            # Сброс данных поглаживания при выходе курсора за пределы котика
+            self.petting_last_pos = (0, 0)
+            self.petting_total_dist = 0
 
     def toggle_laser_mode(self):
         self.laser_mode = not self.laser_mode
