@@ -45,12 +45,14 @@ class StatsDialog(QDialog):
         # Общие очки и KPS в одной строке
         stats_row = QHBoxLayout()
         points_label = QLabel(f"Всего: {points} ❤️")
+        stats_row.addWidget(points_label)
 
         max_kps = self.db.get_stat("max_kps")
-        kps_label = QLabel(f"Рекорд скорости: {max_kps} кл/сек ⚡")
-        kps_label.setAlignment(Qt.AlignCenter)
-        kps_label.setStyleSheet("color: #555; font-size: 11px; margin-bottom: 5px;")
-        layout.addWidget(kps_label)
+        kps_label = QLabel(f"Рекорд: {max_kps} кл/сек ⚡")
+        kps_label.setAlignment(Qt.AlignRight)
+        kps_label.setStyleSheet("color: #555; font-size: 11px;")
+        stats_row.addWidget(kps_label)
+        layout.addLayout(stats_row)
 
         # Прогресс бар
         if points_for_next_level > 0:
@@ -88,8 +90,14 @@ class StatsDialog(QDialog):
             ach_item_layout.addWidget(item_label)
 
             # Расчет прогресса
-            progress_text = ""
-            if not is_unlocked and 'goal' in ach_info and 'stat' in ach_info:
+            ach_text_layout = QVBoxLayout()
+            ach_text_layout.setSpacing(2)
+
+            progress_val = 0
+            goal = ach_info.get('goal', 0)
+            show_progress_bar = False
+
+            if not is_unlocked and goal > 0 and 'stat' in ach_info:
                 if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
                     im = self.parent().input_manager
                     if ach_info['stat'] == 'bonding_points':
@@ -106,14 +114,34 @@ class StatsDialog(QDialog):
                 if ach_info['stat'] == 'level':
                     current_val, _, _, _ = get_level_info(points)
 
-                goal = ach_info['goal']
-                if goal > 0:
-                    progress_text = f" <span style='color: #888;'>({current_val}/{goal})</span>"
+                progress_val = current_val
+                show_progress_bar = True
 
-            info_label = QLabel(f"<b>{ach_info['title']}</b>{progress_text}<br/><small>{ach_info['desc']}</small>")
+            info_label = QLabel(f"<b>{ach_info['title']}</b><br/><small>{ach_info['desc']}</small>")
             if not is_unlocked:
                 info_label.setStyleSheet("color: #888;")
-            ach_item_layout.addWidget(info_label)
+            ach_text_layout.addWidget(info_label)
+
+            if show_progress_bar:
+                ach_progress = QProgressBar()
+                ach_progress.setMaximum(goal)
+                ach_progress.setValue(min(progress_val, goal))
+                ach_progress.setFixedHeight(10)
+                ach_progress.setTextVisible(False)
+                ach_progress.setStyleSheet("""
+                    QProgressBar {
+                        border: 1px solid #ddd;
+                        border-radius: 5px;
+                        background-color: #f0f0f0;
+                    }
+                    QProgressBar::chunk {
+                        background-color: #4CAF50;
+                        border-radius: 4px;
+                    }
+                """)
+                ach_text_layout.addWidget(ach_progress)
+
+            ach_item_layout.addLayout(ach_text_layout)
             ach_item_layout.addStretch()
 
             scroll_layout.addWidget(ach_widget)
