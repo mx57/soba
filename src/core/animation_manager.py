@@ -23,6 +23,7 @@ class AnimationManager:
         self.cached_pixmap = None
         self.last_size = QSize(0, 0)
         self.main_window = self.label.window()
+        self.current_fps = 12
 
         # Таймер для процедурной SVG анимации
         self.anim_timer = QTimer()
@@ -53,7 +54,7 @@ class AnimationManager:
             self.movie.start()
         elif path.endswith(".svg"):
             self.svg_renderer = QSvgRenderer(path)
-            self.anim_timer.start(1000 // 12) # 12 FPS
+            self.anim_timer.start(1000 // self.current_fps)
         else:
             # Статическая картинка (скин)
             pixmap = QPixmap(path)
@@ -154,6 +155,17 @@ class AnimationManager:
             return
 
         self.current_state = state
+
+        # Динамический FPS в зависимости от состояния
+        fps = 12
+        if state == "sleeping":
+            fps = 4
+        elif state in ["overheat", "shaking"]:
+            fps = 20
+
+        self.current_fps = fps
+        if self.anim_timer.isActive():
+            self.anim_timer.start(1000 // fps)
 
         # Если выбран скин, пробуем загрузить его SVG версию
         if self.skin != "default":

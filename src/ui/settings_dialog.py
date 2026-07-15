@@ -50,6 +50,13 @@ class SettingsDialog(QDialog):
         self.skin_combo.setCurrentText(self.config.get("skin"))
         layout.addWidget(self.skin_combo)
 
+        # Прозрачность
+        layout.addWidget(QLabel("Прозрачность окна:"))
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(20, 100)
+        self.opacity_slider.setValue(self.config.get("opacity"))
+        layout.addWidget(self.opacity_slider)
+
         # Кнопки
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Сохранить")
@@ -68,4 +75,5 @@ class SettingsDialog(QDialog):
         self.config.set("pomodoro_work", self.pomodoro_work_spin.value())
         self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
         self.config.set("skin", self.skin_combo.currentText())
+        self.config.set("opacity", self.opacity_slider.value())
         self.accept()

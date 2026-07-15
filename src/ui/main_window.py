@@ -55,6 +55,10 @@ class PetWindow(QMainWindow):
         # Начальный размер
         self.resize(self.original_size)
 
+        # Применяем прозрачность из конфига
+        if self.config:
+            self.setWindowOpacity(self.config.get("opacity") / 100.0)
+
         self.sound_manager = SoundManager(self.config)
 
         # Анимация для перемещения окна (охота)

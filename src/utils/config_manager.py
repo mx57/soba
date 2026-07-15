@@ -11,7 +11,8 @@ class ConfigManager:
         "stretch_interval": 30,
         "volume": 70,
         "language": "ru",
-        "skin": "default"
+        "skin": "default",
+        "opacity": 100
     }
 
     def __init__(self, config_path="settings.json"):
