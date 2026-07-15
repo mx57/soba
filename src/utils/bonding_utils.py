@@ -41,6 +41,18 @@ def get_level(points):
     level, _, _, _ = get_level_info(points)
     return level
 
+CAT_SKINS = {
+    "default": "Стандартный",
+    "orange": "Рыжий",
+    "siamese": "Сиамский",
+    "ginger": "Бежевый",
+    "pink": "Розовый",
+    "white": "Белый",
+    "gray": "Серый",
+    "calico": "Трехцветный",
+    "black": "Черный"
+}
+
 ACHIEVEMENTS = {
     "first_friend": {"title": "Первый друг", "desc": "Достигните 1 уровня привязанности", "icon": "❤️", "goal": 1, "stat": "level"},
     "worker": {"title": "Трудоголик", "desc": "Проведите 10 минут в режиме работы", "icon": "🛠", "goal": 600, "stat": "work_seconds"},

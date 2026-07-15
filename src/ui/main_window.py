@@ -43,6 +43,10 @@ class PetWindow(QMainWindow):
         self.animation_manager = AnimationManager(self.pet_label, self.config)
         self.animation_manager.play_state("idle")
 
+        # Применяем прозрачность из конфига
+        if self.config:
+            self.set_opacity(self.config.get("opacity"))
+
         self.last_state_before_drag = "idle"
 
         self.drag_position = QPoint()
@@ -78,6 +82,10 @@ class PetWindow(QMainWindow):
 
     def get_cached_pos(self):
         return self._cached_pos
+
+    def set_opacity(self, value):
+        """Устанавливает прозрачность окна (0-100)"""
+        self.setWindowOpacity(value / 100.0)
 
     def set_timer_system(self, timer_system):
         self.timer_system = timer_system
