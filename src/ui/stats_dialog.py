@@ -115,7 +115,31 @@ class StatsDialog(QDialog):
             info_label = QLabel(f"<b>{ach_info['title']}</b>{progress_text}<br/><small>{ach_info['desc']}</small>")
             if not is_unlocked:
                 info_label.setStyleSheet("color: #888;")
-            ach_item_layout.addWidget(info_label)
+
+            # Добавляем прогресс-бар для закрытых достижений
+            ach_text_layout = QVBoxLayout()
+            ach_text_layout.addWidget(info_label)
+
+            if not is_unlocked and 'goal' in ach_info and goal > 0:
+                prog_bar = QProgressBar()
+                prog_bar.setMaximum(goal)
+                prog_bar.setValue(min(current_val, goal))
+                prog_bar.setFixedHeight(10)
+                prog_bar.setTextVisible(False)
+                prog_bar.setStyleSheet("""
+                    QProgressBar {
+                        background-color: #eee;
+                        border: none;
+                        border-radius: 5px;
+                    }
+                    QProgressBar::chunk {
+                        background-color: #4CAF50;
+                        border-radius: 5px;
+                    }
+                """)
+                ach_text_layout.addWidget(prog_bar)
+
+            ach_item_layout.addLayout(ach_text_layout)
             ach_item_layout.addStretch()
 
             scroll_layout.addWidget(ach_widget)

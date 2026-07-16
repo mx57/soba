@@ -33,6 +33,14 @@ class AnimationManager:
     def set_animation(self, path):
         # Оптимизация: не перезагружаем ту же самую анимацию
         if self.current_anim_path == path:
+            if path.endswith(".svg") and self.svg_renderer:
+                # Обновляем интервал даже если путь тот же (для динамического FPS)
+                interval = 83
+                if self.current_state == "sleeping":
+                    interval = 250
+                elif self.current_state in ["overheat", "shaking"]:
+                    interval = 50
+                self.anim_timer.start(interval)
             return
 
         if self.movie:
@@ -54,7 +62,13 @@ class AnimationManager:
             self.movie.start()
         elif path.endswith(".svg"):
             self.svg_renderer = QSvgRenderer(path)
-            self.anim_timer.start(1000 // self.current_fps)
+            # Динамический FPS в зависимости от состояния
+            interval = 83 # 12 FPS по умолчанию
+            if self.current_state == "sleeping":
+                interval = 250 # 4 FPS
+            elif self.current_state in ["overheat", "shaking"]:
+                interval = 50  # 20 FPS
+            self.anim_timer.start(interval)
         else:
             # Статическая картинка (скин)
             pixmap = QPixmap(path)

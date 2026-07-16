@@ -174,8 +174,7 @@ class InputManager(QObject):
         new_level = get_level(virtual_total)
 
         if new_level > old_level:
-            self.flush_all() # Обязательно сбрасываем перед уведомлением
-            self.db.log_event("level_up", f"Новый уровень: {new_level}")
+            self.flush_points() # Обязательно сбрасываем перед уведомлением
             self.window.show_message(f"Уровень дружбы повышен: {new_level} ❤️")
             self.window.sound_manager.play_sound("happy")
             self.db.log_event("level_up", f"Уровень повышен до {new_level}")
@@ -250,7 +249,6 @@ class InputManager(QObject):
                     self.unlocked_achievements.append(ach_id)
                     self.db.add_achievement(ach_id)
                     ach = ACHIEVEMENTS[ach_id]
-                    self.db.log_event("achievement", f"Получено достижение: {ach['title']}")
                     self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
                     self.window.sound_manager.play_sound("happy")
                     self.db.log_event("achievement", f"Разблокировано: {ach['title']}")

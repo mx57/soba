@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox
 from PySide6.QtCore import Qt
+from src.utils.bonding_utils import CAT_SKINS
 
 class SettingsDialog(QDialog):
     def __init__(self, config, parent=None):
@@ -21,6 +22,13 @@ class SettingsDialog(QDialog):
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(self.config.get("volume"))
         layout.addWidget(self.volume_slider)
+
+        # Прозрачность
+        layout.addWidget(QLabel("Прозрачность окна:"))
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(20, 100)
+        self.opacity_slider.setValue(self.config.get("opacity"))
+        layout.addWidget(self.opacity_slider)
 
         # Интервал растяжки
         layout.addWidget(QLabel("Интервал растяжки (мин):"))
@@ -45,9 +53,12 @@ class SettingsDialog(QDialog):
         # Выбор скина
         layout.addWidget(QLabel("Окрас котика:"))
         self.skin_combo = QComboBox()
-        skins = ["default", "orange", "siamese", "ginger", "pink", "white", "gray", "calico", "black"]
-        self.skin_combo.addItems(skins)
-        self.skin_combo.setCurrentText(self.config.get("skin"))
+        for skin_id, skin_name in CAT_SKINS.items():
+            self.skin_combo.addItem(skin_name, skin_id)
+
+        index = self.skin_combo.findData(self.config.get("skin"))
+        if index >= 0:
+            self.skin_combo.setCurrentIndex(index)
         layout.addWidget(self.skin_combo)
 
         # Прозрачность
@@ -71,9 +82,9 @@ class SettingsDialog(QDialog):
     def save_settings(self):
         self.config.set("username", self.name_edit.text())
         self.config.set("volume", self.volume_slider.value())
+        self.config.set("opacity", self.opacity_slider.value())
         self.config.set("stretch_interval", self.stretch_spin.value())
         self.config.set("pomodoro_work", self.pomodoro_work_spin.value())
         self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
-        self.config.set("skin", self.skin_combo.currentText())
-        self.config.set("opacity", self.opacity_slider.value())
+        self.config.set("skin", self.skin_combo.currentData())
         self.accept()

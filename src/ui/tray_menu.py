@@ -5,6 +5,7 @@ from PySide6.QtCore import QObject
 from src.utils.paths import TRAY_ICON_PATH, get_animation_path
 from src.ui.settings_dialog import SettingsDialog
 from src.ui.stats_dialog import StatsDialog
+from src.utils.bonding_utils import CAT_SKINS
 
 class TrayMenu(QObject):
     def __init__(self, pet_window):
@@ -50,18 +51,7 @@ class TrayMenu(QObject):
 
         # Выбор скина
         skin_menu = QMenu("Выбрать окрас", self.menu)
-        skins = {
-            "Стандартный": "default",
-            "Рыжий": "orange",
-            "Сиамский": "siamese",
-            "Бежевый": "ginger",
-            "Розовый": "pink",
-            "Белый": "white",
-            "Серый": "gray",
-            "Трехцветный": "calico",
-            "Черный": "black"
-        }
-        for name, skin_id in skins.items():
+        for skin_id, name in CAT_SKINS.items():
             action = QAction(name, self)
             action.triggered.connect(lambda checked=False, sid=skin_id: self.window.animation_manager.set_skin(sid))
             skin_menu.addAction(action)
@@ -131,10 +121,9 @@ class TrayMenu(QObject):
     def show_settings(self, checked=False):
         dialog = SettingsDialog(self.window.config, self.window)
         if dialog.exec():
-            # Обновляем скин в реальном времени
+            # Обновляем скин и прозрачность в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
-            # Обновляем прозрачность
-            self.window.setWindowOpacity(self.window.config.get("opacity") / 100.0)
+            self.window.set_opacity(self.window.config.get("opacity"))
             # Перезапускаем таймер растяжки с новым интервалом
             if self.window.timer_system:
                 self.window.timer_system.restart_stretch_timer()
