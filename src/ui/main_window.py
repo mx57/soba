@@ -20,6 +20,7 @@ class PetWindow(QMainWindow):
             Qt.Tool
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowOpacity(self.config.get("opacity") / 100.0)
 
         # Основной виджет для отображения котика
         self.pet_label = QLabel(self)
