@@ -61,6 +61,13 @@ class SettingsDialog(QDialog):
             self.skin_combo.setCurrentIndex(index)
         layout.addWidget(self.skin_combo)
 
+        # Прозрачность
+        layout.addWidget(QLabel("Прозрачность окна:"))
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(20, 100)
+        self.opacity_slider.setValue(self.config.get("opacity"))
+        layout.addWidget(self.opacity_slider)
+
         # Кнопки
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Сохранить")
