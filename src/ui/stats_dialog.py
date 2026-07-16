@@ -114,31 +114,30 @@ class StatsDialog(QDialog):
             if not is_unlocked:
                 info_label.setStyleSheet("color: #888;")
 
-            info_container = QVBoxLayout()
-            info_container.setSpacing(2)
-            info_container.addWidget(info_label)
+            # Добавляем прогресс-бар для закрытых достижений
+            ach_text_layout = QVBoxLayout()
+            ach_text_layout.addWidget(info_label)
 
-            # Добавляем прогресс-бар для заблокированных достижений
-            if not is_unlocked and 'goal' in ach_info and 'stat' in ach_info and ach_info['goal'] > 0:
-                ach_progress = QProgressBar()
-                ach_progress.setMaximum(ach_info['goal'])
-                ach_progress.setValue(min(current_val, ach_info['goal']))
-                ach_progress.setFixedHeight(8)
-                ach_progress.setTextVisible(False)
-                ach_progress.setStyleSheet("""
+            if not is_unlocked and 'goal' in ach_info and goal > 0:
+                prog_bar = QProgressBar()
+                prog_bar.setMaximum(goal)
+                prog_bar.setValue(min(current_val, goal))
+                prog_bar.setFixedHeight(10)
+                prog_bar.setTextVisible(False)
+                prog_bar.setStyleSheet("""
                     QProgressBar {
-                        border: 1px solid #ddd;
-                        border-radius: 4px;
-                        background-color: #f0f0f0;
+                        background-color: #eee;
+                        border: none;
+                        border-radius: 5px;
                     }
                     QProgressBar::chunk {
                         background-color: #4CAF50;
-                        border-radius: 3px;
+                        border-radius: 5px;
                     }
                 """)
-                info_container.addWidget(ach_progress)
+                ach_text_layout.addWidget(prog_bar)
 
-            ach_item_layout.addLayout(info_container)
+            ach_item_layout.addLayout(ach_text_layout)
             ach_item_layout.addStretch()
 
             scroll_layout.addWidget(ach_widget)
