@@ -60,6 +60,8 @@ class InputManager(QObject):
         self.last_mouse_pos = (0, 0)
         self.last_input_time = time.time()
         self.last_purr_time = 0
+        self.last_pet_time = 0
+        self.last_pet_mouse_pos = (0, 0)
         self.laser_mode = False
 
         self.monitor.key_pressed.connect(self.handle_key)
@@ -332,14 +334,25 @@ class InputManager(QObject):
 
         # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
         if dist_sq_pet < 3600:
-            if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
-                 self.window.animation_manager.play_state("playing")
-                 self.pending_stats["petting_count"] += 1
-                 if self.pending_stats["petting_count"] % 5 == 0:
-                     self.check_for_achievements()
-                 if now - self.last_purr_time > 2.0:
-                     self.window.sound_manager.play_sound("purr")
-                     self.last_purr_time = now
+            # Требуем движения мыши (минимум 30px от прошлого поглаживания) и кулдаун 500мс
+            dx_move = x - self.last_pet_mouse_pos[0]
+            dy_move = y - self.last_pet_mouse_pos[1]
+            move_dist_sq = dx_move * dx_move + dy_move * dy_move
+
+            if move_dist_sq > 900 and (now - self.last_pet_time) > 0.5:
+                if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
+                    self.window.animation_manager.play_state("playing")
+
+                self.pending_stats["petting_count"] += 1
+                self.last_pet_time = now
+                self.last_pet_mouse_pos = (x, y)
+
+                if self.pending_stats["petting_count"] % 5 == 0:
+                    self.check_for_achievements()
+
+                if now - self.last_purr_time > 2.0:
+                    self.window.sound_manager.play_sound("purr")
+                    self.last_purr_time = now
 
     def toggle_laser_mode(self):
         self.laser_mode = not self.laser_mode

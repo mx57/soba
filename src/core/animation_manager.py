@@ -23,6 +23,7 @@ class AnimationManager:
         self.cached_pixmap = None
         self.last_size = QSize(0, 0)
         self.main_window = self.label.window()
+        self._path_cache = {}
 
         # Таймер для процедурной SVG анимации
         self.anim_timer = QTimer()
@@ -185,7 +186,15 @@ class AnimationManager:
         for i in range(1, 5):
             possible_files.append(get_animation_path(self.pet_type, state, i))
 
-        valid_files = [f for f in possible_files if os.path.exists(f)]
+        valid_files = []
+        for f in possible_files:
+            if f in self._path_cache:
+                exists = self._path_cache[f]
+            else:
+                exists = os.path.exists(f)
+                self._path_cache[f] = exists
+            if exists:
+                valid_files.append(f)
 
         if valid_files:
             path = random.choice(valid_files)
@@ -215,4 +224,3 @@ class AnimationManager:
 
     def set_mouse_pos(self, x, y):
         self.last_mouse_pos = (x, y)
-        self.last_mouse_pos_qpoint = QPoint(x, y)

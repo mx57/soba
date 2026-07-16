@@ -45,12 +45,15 @@ class StatsDialog(QDialog):
         # Общие очки и KPS в одной строке
         stats_row = QHBoxLayout()
         points_label = QLabel(f"Всего: {points} ❤️")
+        stats_row.addWidget(points_label)
 
         max_kps = self.db.get_stat("max_kps")
         kps_label = QLabel(f"Рекорд скорости: {max_kps} кл/сек ⚡")
-        kps_label.setAlignment(Qt.AlignCenter)
-        kps_label.setStyleSheet("color: #555; font-size: 11px; margin-bottom: 5px;")
-        layout.addWidget(kps_label)
+        kps_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        kps_label.setStyleSheet("color: #555; font-size: 11px;")
+        stats_row.addWidget(kps_label)
+
+        layout.addLayout(stats_row)
 
         # Прогресс бар
         if points_for_next_level > 0:
