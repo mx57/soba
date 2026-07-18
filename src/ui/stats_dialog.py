@@ -34,6 +34,10 @@ class StatsDialog(QDialog):
         layout = QVBoxLayout(widget)
 
         points = self.db.get_affection_points()
+        # Учитываем накопленные в памяти, но еще не сброшенные в БД очки привязанности
+        if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+            points += self.parent().input_manager.pending_points
+
         level, title, points_in_level, points_for_next_level = get_level_info(points)
 
         # Заголовок
@@ -45,12 +49,18 @@ class StatsDialog(QDialog):
         # Общие очки и KPS в одной строке
         stats_row = QHBoxLayout()
         points_label = QLabel(f"Всего: {points} ❤️")
+        points_label.setStyleSheet("font-weight: bold; font-size: 11px;")
+        stats_row.addWidget(points_label)
 
         max_kps = self.db.get_stat("max_kps")
+        if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+            max_kps = max(max_kps, self.parent().input_manager.max_kps)
+
         kps_label = QLabel(f"Рекорд скорости: {max_kps} кл/сек ⚡")
-        kps_label.setAlignment(Qt.AlignCenter)
-        kps_label.setStyleSheet("color: #555; font-size: 11px; margin-bottom: 5px;")
-        layout.addWidget(kps_label)
+        kps_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        kps_label.setStyleSheet("color: #555; font-size: 11px;")
+        stats_row.addWidget(kps_label)
+        layout.addLayout(stats_row)
 
         # Прогресс бар
         if points_for_next_level > 0:
