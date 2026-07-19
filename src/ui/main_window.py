@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QLabel
 from PySide6.QtCore import Qt, QPoint, QSize, Signal, QPropertyAnimation, QEasingCurve, QTimer
 from src.core.animation_manager import AnimationManager
 from src.utils.sound_manager import SoundManager
+from src.utils.bonding_utils import get_level_info
 
 class PetWindow(QMainWindow):
     closed = Signal()
@@ -76,6 +77,46 @@ class PetWindow(QMainWindow):
         self.message_hide_timer = QTimer(self)
         self.message_hide_timer.setSingleShot(True)
         self.message_hide_timer.timeout.connect(self.message_label.hide)
+
+        self.update_tooltip()
+
+    def update_tooltip(self):
+        """Обновляет всплывающую подсказку при наведении мыши на котика."""
+        points = 0
+        level = 0
+        title = "Знакомый"
+        points_in_level = 0
+        points_for_next_level = 0
+
+        if self.input_manager:
+            points = self.input_manager.last_affection_points + self.input_manager.pending_points
+            level, title, points_in_level, points_for_next_level = get_level_info(points)
+
+        tooltip_lines = [
+            "🐾 Котик-помощник 🐾",
+            f"Уровень {level}: {title}",
+        ]
+
+        if points_for_next_level > 0:
+            tooltip_lines.append(f"Привязанность: {points_in_level}/{points_for_next_level} ❤️ (Всего: {points})")
+        else:
+            tooltip_lines.append(f"Привязанность: {points} ❤️ (Макс. уровень! 🎉)")
+
+        if self.input_manager:
+            tooltip_lines.append(f"Рекорд KPS: {self.input_manager.max_kps} кл/сек ⚡")
+
+        # Если запущен Pomodoro, добавляем статус
+        if self.timer_system and self.timer_system.pomodoro_state != "idle":
+            state = self.timer_system.pomodoro_state
+            remaining = self.timer_system.pomodoro_remaining
+            mins = remaining // 60
+            secs = remaining % 60
+            mode_name = "Работа 🛠" if state == "work" else "Отдых ☕"
+            tooltip_lines.append(f"⏱️ {mode_name}: {mins:02d}:{secs:02d}")
+
+        tooltip_text = "\n".join(tooltip_lines)
+        self.setToolTip(tooltip_text)
+        self.pet_label.setToolTip(tooltip_text)
 
     def moveEvent(self, event):
         self._cached_pos = event.pos()
