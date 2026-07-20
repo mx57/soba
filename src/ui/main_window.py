@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QLabel
 from PySide6.QtCore import Qt, QPoint, QSize, Signal, QPropertyAnimation, QEasingCurve, QTimer
 from src.core.animation_manager import AnimationManager
 from src.utils.sound_manager import SoundManager
+from src.utils.bonding_utils import get_level_info
 
 class PetWindow(QMainWindow):
     closed = Signal()
@@ -20,7 +21,7 @@ class PetWindow(QMainWindow):
             Qt.Tool
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setWindowOpacity(self.config.get("opacity") / 100.0)
+        self.setWindowOpacity(self.config.get("opacity") / 100.0 if self.config else 1.0)
 
         # Основной виджет для отображения котика
         self.pet_label = QLabel(self)
@@ -77,6 +78,9 @@ class PetWindow(QMainWindow):
         self.message_hide_timer.setSingleShot(True)
         self.message_hide_timer.timeout.connect(self.message_label.hide)
 
+        # Настраиваем дефолтный пустой тултип для активации событий наведения мыши
+        self.setToolTip("Загрузка...")
+
     def moveEvent(self, event):
         self._cached_pos = event.pos()
         super().moveEvent(event)
@@ -90,6 +94,36 @@ class PetWindow(QMainWindow):
 
     def set_timer_system(self, timer_system):
         self.timer_system = timer_system
+
+    def update_tooltip(self):
+        """Интерактивное обновление тултипа."""
+        if not self.input_manager:
+            return
+
+        username = self.config.get("username") if self.config else "Пользователь"
+
+        # Виртуальные (актуальные в памяти) очки привязанности
+        virtual_points = self.input_manager.last_affection_points + self.input_manager.pending_points
+        level, title, _, _ = get_level_info(virtual_points)
+
+        # Рекорд KPS
+        max_kps = self.input_manager.max_kps
+
+        # Pomodoro таймер
+        pomodoro_text = "Таймер не запущен"
+        if self.timer_system and self.timer_system.pomodoro_state != "idle":
+            state = "Работа" if self.timer_system.pomodoro_state == "work" else "Отдых"
+            remaining = self.timer_system.pomodoro_remaining
+            mins, secs = divmod(remaining, 60)
+            pomodoro_text = f"{state}: {mins:02d}:{secs:02d}"
+
+        tooltip_text = (
+            f"Хозяин: {username}\n"
+            f"Уровень {level}: {title} ({virtual_points} ❤️)\n"
+            f"Рекорд кликов: {max_kps} кл/сек ⚡\n"
+            f"Pomodoro: {pomodoro_text}"
+        )
+        self.setToolTip(tooltip_text)
 
     def toggle_peek_mode(self):
         """Уход котика за край экрана и возвращение"""
