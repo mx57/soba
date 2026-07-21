@@ -62,6 +62,10 @@ class InputManager(QObject):
         self.last_purr_time = 0
         self.laser_mode = False
 
+        # Поглаживание: предотвращение пассивного фарма очков
+        self.last_pet_time = 0
+        self.last_pet_mouse_pos = (0, 0)
+
         self.monitor.key_pressed.connect(self.handle_key)
         self.monitor.mouse_moved.connect(self.handle_mouse)
 
@@ -154,6 +158,9 @@ class InputManager(QObject):
             if self.laser_mode and self.window.animation_manager.current_state not in ["hunting", "happy"]:
                 self.window.animation_manager.play_state("hunting")
             self.window.start_hunting(self.last_mouse_pos[0], self.last_mouse_pos[1])
+
+        # 4. Обновление интерактивного тултипа
+        self.window.update_tooltip()
 
     def add_points(self, points):
         """Добавляет очки и проверяет повышение уровня."""
@@ -332,14 +339,30 @@ class InputManager(QObject):
 
         # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
         if dist_sq_pet < 3600:
-            if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
-                 self.window.animation_manager.play_state("playing")
-                 self.pending_stats["petting_count"] += 1
-                 if self.pending_stats["petting_count"] % 5 == 0:
-                     self.check_for_achievements()
-                 if now - self.last_purr_time > 2.0:
-                     self.window.sound_manager.play_sound("purr")
-                     self.last_purr_time = now
+            # Исключаем пассивный фарм (требуем активное поглаживание: активное движение мыши и кулдаун)
+            if self.last_pet_time == 0:
+                self.last_pet_mouse_pos = (x, y)
+                self.last_pet_time = now
+
+            dx_stroke = x - self.last_pet_mouse_pos[0]
+            dy_stroke = y - self.last_pet_mouse_pos[1]
+            stroke_dist_sq = dx_stroke * dx_stroke + dy_stroke * dy_stroke
+
+            # Кулдаун 500мс и требование к длине мазка движения (30px -> 900)
+            if now - self.last_pet_time >= 0.5 and stroke_dist_sq >= 900:
+                if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
+                    self.window.animation_manager.play_state("playing")
+                    self.pending_stats["petting_count"] += 1
+                    if self.pending_stats["petting_count"] % 5 == 0:
+                        self.check_for_achievements()
+                    if now - self.last_purr_time > 2.0:
+                        self.window.sound_manager.play_sound("purr")
+                        self.last_purr_time = now
+                self.last_pet_time = now
+                self.last_pet_mouse_pos = (x, y)
+        else:
+            # Сброс начальной точки поглаживания при выходе за пределы питомца
+            self.last_pet_time = 0
 
     def toggle_laser_mode(self):
         self.laser_mode = not self.laser_mode

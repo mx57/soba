@@ -25,7 +25,24 @@ class TrayMenu(QObject):
         self.tray_icon.setContextMenu(self.menu)
         self.tray_icon.show()
 
+        # Подписка на сигналы таймера для обновления статуса
+        if self.window.timer_system:
+            self.window.timer_system.pomodoro_tick.connect(self.update_pomodoro_status)
+            self.window.timer_system.pomodoro_finished.connect(self.on_pomodoro_finished)
+
     def setup_menu(self):
+        # 1. Секция статуса Pomodoro
+        self.status_action = QAction("Таймер не запущен", self)
+        self.status_action.setEnabled(False)
+        self.menu.addAction(self.status_action)
+
+        self.stop_pomodoro_action = QAction("Остановить таймер", self)
+        self.stop_pomodoro_action.setVisible(False)
+        self.stop_pomodoro_action.triggered.connect(self.stop_pomodoro)
+        self.menu.addAction(self.stop_pomodoro_action)
+
+        self.menu.addSeparator()
+
         # Действия с питомцем
         feed_action = QAction("Покормить", self)
         feed_action.triggered.connect(self.feed_pet)
@@ -60,16 +77,9 @@ class TrayMenu(QObject):
         self.menu.addSeparator()
 
         # Pomodoro
-        pomodoro_menu = QMenu("Таймер Pomodoro", self.menu)
-        start_work = QAction("Начать работу (25 мин)", self)
-        start_work.triggered.connect(self.start_work_timer)
-        pomodoro_menu.addAction(start_work)
-
-        start_break = QAction("Перерыв (5 мин)", self)
-        start_break.triggered.connect(self.start_break_timer)
-        pomodoro_menu.addAction(start_break)
-
-        self.menu.addMenu(pomodoro_menu)
+        self.pomodoro_menu = QMenu("Таймер Pomodoro", self.menu)
+        self.update_pomodoro_menu_texts()
+        self.menu.addMenu(self.pomodoro_menu)
 
         self.menu.addSeparator()
 
@@ -96,6 +106,49 @@ class TrayMenu(QObject):
         quit_action = QAction("Выход", self)
         quit_action.triggered.connect(self.quit_app)
         self.menu.addAction(quit_action)
+
+    def update_pomodoro_menu_texts(self):
+        """Динамически обновляет или создает пункты меню Pomodoro на основе конфига."""
+        self.pomodoro_menu.clear()
+
+        work_min = self.window.config.get("pomodoro_work")
+        break_min = self.window.config.get("pomodoro_break")
+
+        start_work = QAction(f"Начать работу ({work_min} мин)", self)
+        start_work.triggered.connect(self.start_work_timer)
+        self.pomodoro_menu.addAction(start_work)
+
+        start_break = QAction(f"Перерыв ({break_min} мин)", self)
+        start_break.triggered.connect(self.start_break_timer)
+        self.pomodoro_menu.addAction(start_break)
+
+    def update_pomodoro_status(self, remaining_seconds):
+        if not self.window.timer_system:
+            return
+
+        state = self.window.timer_system.pomodoro_state
+        if state == "idle" or remaining_seconds <= 0:
+            self.status_action.setText("Таймер не запущен")
+            self.stop_pomodoro_action.setVisible(False)
+            self.tray_icon.setToolTip("Десктопный Котик 🐾")
+        else:
+            mins, secs = divmod(remaining_seconds, 60)
+            time_str = f"{mins:02d}:{secs:02d}"
+            state_text = "Работа" if state == "work" else "Отдых"
+
+            self.status_action.setText(f"Осталось ({state_text}): {time_str}")
+            self.stop_pomodoro_action.setVisible(True)
+            self.tray_icon.setToolTip(f"Котик [{state_text}]: {time_str}")
+
+    def on_pomodoro_finished(self, mode):
+        self.status_action.setText("Таймер не запущен")
+        self.stop_pomodoro_action.setVisible(False)
+        self.tray_icon.setToolTip("Десктопный Котик 🐾")
+
+    def stop_pomodoro(self, checked=False):
+        if self.window.timer_system:
+            self.window.timer_system.stop_pomodoro()
+            self.window.show_message("Таймер остановлен ⏹️")
 
     def quit_app(self, checked=False):
         self.window.close()
@@ -124,6 +177,8 @@ class TrayMenu(QObject):
             # Обновляем скин и прозрачность в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            # Обновляем тексты в меню Pomodoro
+            self.update_pomodoro_menu_texts()
             # Перезапускаем таймер растяжки с новым интервалом
             if self.window.timer_system:
                 self.window.timer_system.restart_stretch_timer()
