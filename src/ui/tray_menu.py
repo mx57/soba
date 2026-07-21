@@ -13,6 +13,7 @@ class TrayMenu(QObject):
         self.window = pet_window
 
         self.tray_icon = QSystemTrayIcon(self.window)
+        self.tray_icon.setToolTip("Десктопный Котик 🐾")
         # Используем статичную PNG иконку для трея
         if os.path.exists(TRAY_ICON_PATH):
             self.tray_icon.setIcon(QIcon(TRAY_ICON_PATH))
@@ -24,6 +25,10 @@ class TrayMenu(QObject):
 
         self.tray_icon.setContextMenu(self.menu)
         self.tray_icon.show()
+
+        if self.window.timer_system:
+            self.window.timer_system.pomodoro_tick.connect(self.update_pomodoro_status)
+            self.window.timer_system.pomodoro_finished.connect(self.on_pomodoro_finished)
 
     def setup_menu(self):
         # Действия с питомцем
@@ -61,6 +66,8 @@ class TrayMenu(QObject):
 
         # Pomodoro
         pomodoro_menu = QMenu("Таймер Pomodoro", self.menu)
+        self.pomodoro_menu = pomodoro_menu
+
         start_work = QAction("Начать работу (25 мин)", self)
         start_work.triggered.connect(self.start_work_timer)
         pomodoro_menu.addAction(start_work)
@@ -68,6 +75,15 @@ class TrayMenu(QObject):
         start_break = QAction("Перерыв (5 мин)", self)
         start_break.triggered.connect(self.start_break_timer)
         pomodoro_menu.addAction(start_break)
+
+        self.pomodoro_status_action = QAction("Статус: Не активен", self)
+        self.pomodoro_status_action.setEnabled(False)
+        pomodoro_menu.addAction(self.pomodoro_status_action)
+
+        self.pomodoro_stop_action = QAction("Остановить таймер", self)
+        self.pomodoro_stop_action.triggered.connect(self.stop_pomodoro_timer)
+        self.pomodoro_stop_action.setVisible(False)
+        pomodoro_menu.addAction(self.pomodoro_stop_action)
 
         self.menu.addMenu(pomodoro_menu)
 
@@ -135,6 +151,35 @@ class TrayMenu(QObject):
             self.window.input_manager.flush_all()
             dialog = StatsDialog(self.window.input_manager.db, self.window)
             dialog.exec()
+
+    def stop_pomodoro_timer(self, checked=False):
+        if self.window.timer_system:
+            self.window.timer_system.stop_pomodoro()
+            self.window.show_message("Таймер остановлен ⏱️")
+
+    def update_pomodoro_status(self, remaining_seconds):
+        if not self.window.timer_system:
+            return
+
+        state = self.window.timer_system.pomodoro_state
+        if state == "idle" or remaining_seconds <= 0:
+            self.pomodoro_status_action.setText("Статус: Не активен")
+            self.pomodoro_stop_action.setVisible(False)
+            self.tray_icon.setToolTip("Десктопный Котик 🐾")
+        else:
+            mins = remaining_seconds // 60
+            secs = remaining_seconds % 60
+            state_str = "Работа" if state == "work" else "Перерыв"
+            time_str = f"{mins:02d}:{secs:02d}"
+
+            self.pomodoro_status_action.setText(f"Осталось ({state_str}): {time_str}")
+            self.pomodoro_stop_action.setVisible(True)
+            self.tray_icon.setToolTip(f"Десктопный Котик 🐾\n({state_str}: {time_str})")
+
+    def on_pomodoro_finished(self, mode):
+        self.pomodoro_status_action.setText("Статус: Не активен")
+        self.pomodoro_stop_action.setVisible(False)
+        self.tray_icon.setToolTip("Десктопный Котик 🐾")
 
     def feed_pet(self, checked=False):
         self.window.animation_manager.play_state("eating")

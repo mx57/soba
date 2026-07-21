@@ -223,6 +223,39 @@ class PetWindow(QMainWindow):
         self.animation_manager.update_size(self.size())
         self.animation_manager.play_state(self.last_state_before_drag)
 
+    def update_tooltip(self):
+        """Обновляет интерактивный тултип окна питомца"""
+        if not self.input_manager:
+            return
+
+        # Получаем данные из InputManager и Config
+        name = self.config.get("username", "Котик") if self.config else "Котик"
+        points = self.input_manager.last_affection_points + self.input_manager.pending_points
+
+        # Получаем уровень и титул
+        from src.utils.bonding_utils import get_level_info
+        level, title, _, _ = get_level_info(points)
+
+        max_kps = self.input_manager.max_kps
+
+        # Статус таймера Pomodoro
+        pomodoro_text = "Не активен"
+        if self.timer_system and self.timer_system.pomodoro_state != "idle":
+            state_name = "Работа" if self.timer_system.pomodoro_state == "work" else "Перерыв"
+            rem = self.timer_system.pomodoro_remaining
+            mins = rem // 60
+            secs = rem % 60
+            pomodoro_text = f"{state_name} ({mins:02d}:{secs:02d})"
+
+        tooltip_content = (
+            f"Имя: {name}\n"
+            f"Уровень {level}: {title}\n"
+            f"Привязанность: {points} ❤️\n"
+            f"Рекорд: {max_kps} кл/сек ⚡\n"
+            f"Таймер Pomodoro: {pomodoro_text}"
+        )
+        self.setToolTip(tooltip_content)
+
     def closeEvent(self, event):
         self.closed.emit()
         super().closeEvent(event)

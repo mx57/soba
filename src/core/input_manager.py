@@ -155,6 +155,10 @@ class InputManager(QObject):
                 self.window.animation_manager.play_state("hunting")
             self.window.start_hunting(self.last_mouse_pos[0], self.last_mouse_pos[1])
 
+        # 4. Обновление тултипа окна питомца
+        if hasattr(self.window, "update_tooltip"):
+            self.window.update_tooltip()
+
     def add_points(self, points):
         """Добавляет очки и проверяет повышение уровня."""
         if not self.db:
