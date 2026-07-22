@@ -11,12 +11,21 @@ import unittest
 import os
 import json
 import time
+from PySide6.QtCore import Qt
+from src.ui.main_window import PetWindow
 from src.utils.config_manager import ConfigManager
 from src.utils.data_store import DataStore
 from src.core.timer_system import TimerSystem
 from src.core.input_manager import InputManager
 
 class TestUtils(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from PySide6.QtWidgets import QApplication
+        # Initialize offscreen app for testing PetWindow
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        cls.app = QApplication.instance() or QApplication(sys.argv)
+
     def setUp(self):
         self.config_path = "test_settings.json"
         self.db_path = "test_activity.db"
@@ -85,6 +94,21 @@ class TestUtils(unittest.TestCase):
         ts.stop_pomodoro()
         self.assertEqual(ts.pomodoro_state, "idle")
         self.assertEqual(ts.pomodoro_remaining, 0)
+
+    def test_pet_window_always_on_top(self):
+        config = ConfigManager(self.config_path)
+        # Test initial state with always_on_top = True (default)
+        config.set("always_on_top", True)
+        window = PetWindow(config)
+        self.assertTrue(bool(window.windowFlags() & Qt.WindowStaysOnTopHint))
+
+        # Test disabling always_on_top dynamically
+        window.set_always_on_top(False)
+        self.assertFalse(bool(window.windowFlags() & Qt.WindowStaysOnTopHint))
+
+        # Test enabling always_on_top dynamically
+        window.set_always_on_top(True)
+        self.assertTrue(bool(window.windowFlags() & Qt.WindowStaysOnTopHint))
 
     def test_input_manager_petting_logic(self):
         # Мокаем PetWindow, AnimationManager и SoundManager
