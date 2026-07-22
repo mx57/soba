@@ -174,8 +174,9 @@ class TrayMenu(QObject):
     def show_settings(self, checked=False):
         dialog = SettingsDialog(self.window.config, self.window)
         if dialog.exec():
-            # Обновляем скин и прозрачность в реальном времени
+            # Обновляем скин, всегда поверх и прозрачность в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
+            self.window.set_always_on_top(self.window.config.get("always_on_top"))
             self.window.set_opacity(self.window.config.get("opacity"))
             # Обновляем тексты в меню Pomodoro
             self.update_pomodoro_menu_texts()
