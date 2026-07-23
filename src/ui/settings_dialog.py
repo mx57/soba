@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox, QCheckBox
 from PySide6.QtCore import Qt
 from src.utils.bonding_utils import CAT_SKINS
 
@@ -50,6 +50,11 @@ class SettingsDialog(QDialog):
         self.pomodoro_break_spin.setValue(self.config.get("pomodoro_break"))
         layout.addWidget(self.pomodoro_break_spin)
 
+        # Поверх всех окон
+        self.always_on_top_check = QCheckBox("Поверх всех окон")
+        self.always_on_top_check.setChecked(self.config.get("always_on_top"))
+        layout.addWidget(self.always_on_top_check)
+
         # Выбор скина
         layout.addWidget(QLabel("Окрас котика:"))
         self.skin_combo = QComboBox()
@@ -79,5 +84,6 @@ class SettingsDialog(QDialog):
         self.config.set("stretch_interval", self.stretch_spin.value())
         self.config.set("pomodoro_work", self.pomodoro_work_spin.value())
         self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
+        self.config.set("always_on_top", self.always_on_top_check.isChecked())
         self.config.set("skin", self.skin_combo.currentData())
         self.accept()

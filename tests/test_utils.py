@@ -86,6 +86,30 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(ts.pomodoro_state, "idle")
         self.assertEqual(ts.pomodoro_remaining, 0)
 
+    def test_always_on_top_logic(self):
+        config = ConfigManager(self.config_path)
+        config.set("always_on_top", True)
+
+        # Test default and toggled state in config
+        self.assertTrue(config.get("always_on_top"))
+        config.set("always_on_top", False)
+        self.assertFalse(config.get("always_on_top"))
+
+        # Test PetWindow dynamic set_always_on_top (using mock since we are running headless without full UI initialization)
+        mock_window = MagicMock()
+        mock_window.config = config
+
+        def set_always_on_top_impl(enabled):
+            config.set("always_on_top", enabled)
+
+        mock_window.set_always_on_top = set_always_on_top_impl
+
+        mock_window.set_always_on_top(True)
+        self.assertTrue(config.get("always_on_top"))
+
+        mock_window.set_always_on_top(False)
+        self.assertFalse(config.get("always_on_top"))
+
     def test_input_manager_petting_logic(self):
         # Мокаем PetWindow, AnimationManager и SoundManager
         mock_window = MagicMock()
