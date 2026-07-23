@@ -15,11 +15,10 @@ class PetWindow(QMainWindow):
         self.input_manager = None
 
         # Настройка прозрачного и безрамочного окна
-        self.setWindowFlags(
-            Qt.WindowStaysOnTopHint |
-            Qt.FramelessWindowHint |
-            Qt.Tool
-        )
+        flags = Qt.FramelessWindowHint | Qt.Tool
+        if self.config is None or self.config.get("always_on_top") is True:
+            flags |= Qt.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setWindowOpacity(self.config.get("opacity") / 100.0 if self.config else 1.0)
 
@@ -87,6 +86,22 @@ class PetWindow(QMainWindow):
 
     def get_cached_pos(self):
         return self._cached_pos
+
+    def set_always_on_top(self, enabled):
+        """Динамически включает или выключает режим 'Поверх всех окон'"""
+        if self.config:
+            self.config.set("always_on_top", enabled)
+
+        # Получаем текущие флаги окна
+        flags = self.windowFlags()
+        if enabled:
+            flags |= Qt.WindowStaysOnTopHint
+        else:
+            flags &= ~Qt.WindowStaysOnTopHint
+
+        self.setWindowFlags(flags)
+        # В Qt изменение флагов скрывает окно, поэтому его нужно перепоказать
+        self.show()
 
     def set_opacity(self, value):
         """Устанавливает прозрачность окна (0-100)"""
