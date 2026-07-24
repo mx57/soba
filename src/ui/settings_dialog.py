@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox, QCheckBox
 from PySide6.QtCore import Qt
 from src.utils.bonding_utils import CAT_SKINS
 
@@ -29,6 +29,11 @@ class SettingsDialog(QDialog):
         self.opacity_slider.setRange(20, 100)
         self.opacity_slider.setValue(self.config.get("opacity"))
         layout.addWidget(self.opacity_slider)
+
+        # Поверх всех окон
+        self.always_on_top_check = QCheckBox("Поверх всех окон")
+        self.always_on_top_check.setChecked(self.config.get("always_on_top"))
+        layout.addWidget(self.always_on_top_check)
 
         # Интервал растяжки
         layout.addWidget(QLabel("Интервал растяжки (мин):"))
@@ -76,6 +81,7 @@ class SettingsDialog(QDialog):
         self.config.set("username", self.name_edit.text())
         self.config.set("volume", self.volume_slider.value())
         self.config.set("opacity", self.opacity_slider.value())
+        self.config.set("always_on_top", self.always_on_top_check.isChecked())
         self.config.set("stretch_interval", self.stretch_spin.value())
         self.config.set("pomodoro_work", self.pomodoro_work_spin.value())
         self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
