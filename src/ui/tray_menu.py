@@ -90,6 +90,15 @@ class TrayMenu(QObject):
 
         self.menu.addSeparator()
 
+        # Поверх всех окон
+        self.always_on_top_action = QAction("Поверх всех окон", self)
+        self.always_on_top_action.setCheckable(True)
+        self.always_on_top_action.setChecked(self.window.config.get("always_on_top") if self.window.config else True)
+        self.always_on_top_action.triggered.connect(self.toggle_always_on_top)
+        self.menu.addAction(self.always_on_top_action)
+
+        self.menu.addSeparator()
+
         # Статистика
         stats_action = QAction("Статистика", self)
         stats_action.triggered.connect(self.show_stats)
@@ -177,6 +186,10 @@ class TrayMenu(QObject):
             # Обновляем скин и прозрачность в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            # Обновляем поверх всех окон
+            always_on_top = self.window.config.get("always_on_top") if self.window.config else True
+            self.window.set_always_on_top(always_on_top)
+            self.always_on_top_action.setChecked(always_on_top)
             # Обновляем тексты в меню Pomodoro
             self.update_pomodoro_menu_texts()
             # Перезапускаем таймер растяжки с новым интервалом
@@ -208,3 +221,7 @@ class TrayMenu(QObject):
                 self.show_message("Мини-игра", "Лазерная указка активирована! 🔴")
             else:
                 self.show_message("Мини-игра", "Лазерная указка выключена.")
+
+    def toggle_always_on_top(self, checked):
+        self.window.set_always_on_top(checked)
+        self.window.show_message("Поверх окон: " + ("вкл 🔝" if checked else "выкл 🔓"))

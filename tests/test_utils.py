@@ -122,5 +122,35 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_pet_window_always_on_top(self):
+        # We need a QApplication to instantiate QWidgets/QMainWindow
+        from PySide6.QtWidgets import QApplication
+        from src.ui.main_window import PetWindow
+        from PySide6.QtCore import Qt
+
+        app = QApplication.instance()
+        if not app:
+            os.environ["QT_QPA_PLATFORM"] = "offscreen"
+            app = QApplication(sys.argv)
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Test starting as True (default)
+        config.set("always_on_top", True)
+        window = PetWindow(config)
+        self.assertTrue(bool(window.windowFlags() & Qt.WindowStaysOnTopHint))
+
+        # 2. Test toggling to False
+        window.set_always_on_top(False)
+        self.assertFalse(bool(window.windowFlags() & Qt.WindowStaysOnTopHint))
+        self.assertFalse(config.get("always_on_top"))
+
+        # 3. Test toggling back to True
+        window.set_always_on_top(True)
+        self.assertTrue(bool(window.windowFlags() & Qt.WindowStaysOnTopHint))
+        self.assertTrue(config.get("always_on_top"))
+
+        window.close()
+
 if __name__ == '__main__':
     unittest.main()
