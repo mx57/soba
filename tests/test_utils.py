@@ -11,6 +11,8 @@ import unittest
 import os
 import json
 import time
+from PySide6.QtCore import Qt
+from src.ui.main_window import PetWindow
 from src.utils.config_manager import ConfigManager
 from src.utils.data_store import DataStore
 from src.core.timer_system import TimerSystem
@@ -26,6 +28,35 @@ class TestUtils(unittest.TestCase):
             os.remove(self.config_path)
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
+
+    def test_always_on_top_logic(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Проверяем дефолтное значение и перезапись в ConfigManager
+        self.assertTrue(config.get("always_on_top"))
+        config.set("always_on_top", False)
+        self.assertFalse(config.get("always_on_top"))
+
+        # 2. Инициализация PetWindow со значением False
+        window = PetWindow(config)
+        flags = window.windowFlags()
+        self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
+
+        # 3. Динамическое изменение через set_always_on_top(True)
+        window.set_always_on_top(True)
+        flags = window.windowFlags()
+        self.assertTrue(bool(flags & Qt.WindowStaysOnTopHint))
+        self.assertTrue(config.get("always_on_top"))
+
+        # 4. Динамическое изменение через set_always_on_top(False)
+        window.set_always_on_top(False)
+        flags = window.windowFlags()
+        self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
+        self.assertFalse(config.get("always_on_top"))
 
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
