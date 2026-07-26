@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox, QCheckBox
 from PySide6.QtCore import Qt
 from src.utils.bonding_utils import CAT_SKINS
 
@@ -15,6 +15,11 @@ class SettingsDialog(QDialog):
         layout.addWidget(QLabel("Имя пользователя:"))
         self.name_edit = QLineEdit(self.config.get("username"))
         layout.addWidget(self.name_edit)
+
+        # Поверх всех окон
+        self.always_on_top_check = QCheckBox("Поверх всех окон")
+        self.always_on_top_check.setChecked(self.config.get("always_on_top"))
+        layout.addWidget(self.always_on_top_check)
 
         # Громкость
         layout.addWidget(QLabel("Громкость звука:"))
@@ -74,6 +79,7 @@ class SettingsDialog(QDialog):
 
     def save_settings(self):
         self.config.set("username", self.name_edit.text())
+        self.config.set("always_on_top", self.always_on_top_check.isChecked())
         self.config.set("volume", self.volume_slider.value())
         self.config.set("opacity", self.opacity_slider.value())
         self.config.set("stretch_interval", self.stretch_spin.value())

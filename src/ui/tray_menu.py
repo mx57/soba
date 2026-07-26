@@ -90,6 +90,15 @@ class TrayMenu(QObject):
 
         self.menu.addSeparator()
 
+        # Опция "Поверх всех окон"
+        self.always_on_top_action = QAction("Поверх всех окон", self)
+        self.always_on_top_action.setCheckable(True)
+        self.always_on_top_action.setChecked(self.window.config.get("always_on_top"))
+        self.always_on_top_action.triggered.connect(self.toggle_always_on_top)
+        self.menu.addAction(self.always_on_top_action)
+
+        self.menu.addSeparator()
+
         # Статистика
         stats_action = QAction("Статистика", self)
         stats_action.triggered.connect(self.show_stats)
@@ -150,6 +159,9 @@ class TrayMenu(QObject):
             self.window.timer_system.stop_pomodoro()
             self.window.show_message("Таймер остановлен ⏹️")
 
+    def toggle_always_on_top(self, checked):
+        self.window.set_always_on_top(checked)
+
     def quit_app(self, checked=False):
         self.window.close()
         QApplication.instance().quit()
@@ -177,6 +189,9 @@ class TrayMenu(QObject):
             # Обновляем скин и прозрачность в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            # Обновляем режим "Поверх всех окон" в реальном времени
+            self.window.set_always_on_top(self.window.config.get("always_on_top"))
+            self.always_on_top_action.setChecked(self.window.config.get("always_on_top"))
             # Обновляем тексты в меню Pomodoro
             self.update_pomodoro_menu_texts()
             # Перезапускаем таймер растяжки с новым интервалом
