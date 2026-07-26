@@ -122,5 +122,32 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_always_on_top_logic(self):
+        config = ConfigManager(self.config_path)
+        config.set("always_on_top", True)
+
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import Qt
+
+        app = QApplication.instance() or QApplication([])
+
+        from src.ui.main_window import PetWindow
+        window = PetWindow(config)
+
+        # Проверяем начальные флаги
+        self.assertTrue(bool(window.windowFlags() & Qt.WindowStaysOnTopHint))
+
+        # Выключаем поверх всех окон
+        window.set_always_on_top(False)
+        self.assertFalse(bool(window.windowFlags() & Qt.WindowStaysOnTopHint))
+        self.assertFalse(config.get("always_on_top"))
+
+        # Включаем обратно
+        window.set_always_on_top(True)
+        self.assertTrue(bool(window.windowFlags() & Qt.WindowStaysOnTopHint))
+        self.assertTrue(config.get("always_on_top"))
+
+        window.close()
+
 if __name__ == '__main__':
     unittest.main()
