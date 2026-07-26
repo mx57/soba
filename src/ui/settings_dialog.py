@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSlider, QComboBox, QPushButton, QSpinBox, QCheckBox
 from PySide6.QtCore import Qt
 from src.utils.bonding_utils import CAT_SKINS
 
@@ -61,6 +61,11 @@ class SettingsDialog(QDialog):
             self.skin_combo.setCurrentIndex(index)
         layout.addWidget(self.skin_combo)
 
+        # Поверх всех окон
+        self.always_on_top_checkbox = QCheckBox("Поверх всех окон")
+        self.always_on_top_checkbox.setChecked(self.config.get("always_on_top"))
+        layout.addWidget(self.always_on_top_checkbox)
+
         # Кнопки
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Сохранить")
@@ -80,4 +85,5 @@ class SettingsDialog(QDialog):
         self.config.set("pomodoro_work", self.pomodoro_work_spin.value())
         self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
         self.config.set("skin", self.skin_combo.currentData())
+        self.config.set("always_on_top", self.always_on_top_checkbox.isChecked())
         self.accept()

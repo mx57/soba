@@ -15,11 +15,11 @@ class PetWindow(QMainWindow):
         self.input_manager = None
 
         # Настройка прозрачного и безрамочного окна
-        self.setWindowFlags(
-            Qt.WindowStaysOnTopHint |
-            Qt.FramelessWindowHint |
-            Qt.Tool
-        )
+        always_on_top = self.config.get("always_on_top") if self.config else True
+        flags = Qt.FramelessWindowHint | Qt.Tool
+        if always_on_top:
+            flags |= Qt.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setWindowOpacity(self.config.get("opacity") / 100.0 if self.config else 1.0)
 
@@ -91,6 +91,16 @@ class PetWindow(QMainWindow):
     def set_opacity(self, value):
         """Устанавливает прозрачность окна (0-100)"""
         self.setWindowOpacity(value / 100.0)
+
+    def set_always_on_top(self, enabled):
+        """Динамически изменяет состояние 'Поверх всех окон'."""
+        if self.config:
+            self.config.set("always_on_top", enabled)
+        flags = Qt.FramelessWindowHint | Qt.Tool
+        if enabled:
+            flags |= Qt.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        self.show()
 
     def set_timer_system(self, timer_system):
         self.timer_system = timer_system
