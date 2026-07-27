@@ -57,7 +57,8 @@ class InputManager(QObject):
         self.overheat_threshold = 12 # KPS для режима перегрева
 
         self.last_mouse_time = 0
-        self.last_mouse_pos = (0, 0)
+        cursor_pos = self.window.cursor().pos() if self.window else None
+        self.last_mouse_pos = (cursor_pos.x(), cursor_pos.y()) if cursor_pos else (0, 0)
         self.last_input_time = time.time()
         self.last_purr_time = 0
         self.laser_mode = False
@@ -89,6 +90,10 @@ class InputManager(QObject):
         self.unlocked_achievements = []
         self.stats_cache = {}
 
+        self.last_periodic_check_time = time.time()
+        self.points_time_accumulator = 0.0
+        self.work_time_accumulator = 0.0
+
         if self.db:
             self.last_affection_points = self.db.get_affection_points()
             self.unlocked_achievements = self.db.get_unlocked_achievements()
@@ -108,6 +113,9 @@ class InputManager(QObject):
 
     def periodic_check(self):
         now = time.time()
+        dt = now - self.last_periodic_check_time
+        self.last_periodic_check_time = now
+
         idle_time = now - self.last_input_time
         current_state = self.window.animation_manager.current_state
 
@@ -142,16 +150,30 @@ class InputManager(QObject):
                     self.window.animation_manager.play_state("idle")
 
         # 2. Начисление очков привязанности за взаимодействие (буферизация) и статистика
-        # Начисляем очки раз в 2 секунды (каждый 4-й тик таймера 0.5с) для баланса
-        if int(now * 2) % 4 == 0:
+        # Используем точные аккумуляторы времени вместо нестабильного деления по времени
+        if self.db:
             state = self.window.animation_manager.current_state
-            if self.db and state in ["working", "overheat", "playing", "hunting"]:
-                self.add_points(1)
 
-            # Статистика рабочего времени (буферизация)
-            if self.db and state in ["working", "overheat"]:
-                self.pending_stats["work_seconds"] += 2
-                self.check_for_achievements()
+            # Начисление очков привязанности каждые 2 секунды активного взаимодействия
+            if state in ["working", "overheat", "playing", "hunting"]:
+                self.points_time_accumulator += dt
+                if self.points_time_accumulator >= 2.0:
+                    points_to_add = int(self.points_time_accumulator // 2.0)
+                    self.add_points(points_to_add)
+                    self.points_time_accumulator %= 2.0
+            else:
+                self.points_time_accumulator = 0.0
+
+            # Начисление рабочего времени каждые 2 секунды работы
+            if state in ["working", "overheat"]:
+                self.work_time_accumulator += dt
+                if self.work_time_accumulator >= 2.0:
+                    seconds_to_add = int(self.work_time_accumulator // 2.0) * 2
+                    self.pending_stats["work_seconds"] += seconds_to_add
+                    self.work_time_accumulator %= 2.0
+                    self.check_for_achievements()
+            else:
+                self.work_time_accumulator = 0.0
 
         # 3. Поддержка непрерывной охоты
         if self.window.animation_manager.current_state == "hunting" or self.laser_mode:
@@ -368,7 +390,29 @@ class InputManager(QObject):
         self.laser_mode = not self.laser_mode
         if self.laser_mode:
             self.window.animation_manager.play_state("hunting")
-            self.window.setCursor(Qt.CrossCursor)
+            # Создаем красивый светящийся красный лазерный курсор
+            from PySide6.QtGui import QCursor, QPixmap, QPainter, QColor, QRadialGradient
+
+            pixmap = QPixmap(16, 16)
+            pixmap.fill(Qt.transparent)
+
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+
+            # Радиальный градиент для эффекта свечения
+            gradient = QRadialGradient(8, 8, 8)
+            gradient.setColorAt(0.0, QColor(255, 0, 0, 255))     # Интенсивный красный центр
+            gradient.setColorAt(0.3, QColor(255, 0, 0, 220))
+            gradient.setColorAt(0.8, QColor(255, 50, 50, 100))   # Мягкое красное свечение
+            gradient.setColorAt(1.0, QColor(255, 100, 100, 0))   # Прозрачный край
+
+            painter.setBrush(gradient)
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(0, 0, 16, 16)
+            painter.end()
+
+            laser_cursor = QCursor(pixmap, 8, 8)
+            self.window.setCursor(laser_cursor)
         else:
             self.window.setCursor(Qt.ArrowCursor)
             self.window.animation_manager.play_state("idle")

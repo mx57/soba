@@ -186,6 +186,10 @@ class PetWindow(QMainWindow):
                     self.input_manager.pending_stats["cursor_catches"] += 1
                     self.input_manager.check_for_achievements()
             return
+        else:
+            # Если лазер/курсор ушел дальше, а котик все еще радовался — возвращаем режим охоты
+            if self.animation_manager.current_state == "happy":
+                self.animation_manager.play_state("hunting")
 
         self.pos_animation.stop()
         self.pos_animation.setDuration(500)
