@@ -19,7 +19,8 @@ class AnimationManager:
         self.current_anim_path = None
         self.pet_type = "cat"
         self.skin = config.get("skin") if config else "default"
-        self.last_mouse_pos = (0, 0)
+        cursor_pos = self.label.cursor().pos() if self.label else None
+        self.last_mouse_pos = (cursor_pos.x(), cursor_pos.y()) if cursor_pos else (0, 0)
         self.cached_pixmap = None
         self.last_size = QSize(0, 0)
         self.main_window = self.label.window()

@@ -11,7 +11,7 @@ import unittest
 import os
 import json
 import time
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPoint
 from src.ui.main_window import PetWindow
 from src.utils.config_manager import ConfigManager
 from src.utils.data_store import DataStore
@@ -129,6 +129,11 @@ class TestUtils(unittest.TestCase):
         mock_pos.y.return_value = 100
         mock_window.get_cached_pos.return_value = mock_pos
 
+        # Настраиваем mock для cursor().pos()
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
         mock_window.animation_manager.current_state = "idle"
 
         db = DataStore(self.db_path)
@@ -150,6 +155,62 @@ class TestUtils(unittest.TestCase):
         im.last_pet_time -= 1.0 # Проматываем время назад
         im.handle_mouse(190, 190) # движение от (150,150) к (190,190) это ~56px
         self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+
+    def test_periodic_check_time_accumulators(self):
+        # Мокаем PetWindow и AnimationManager
+        mock_window = MagicMock()
+        mock_window.animation_manager.current_state = "working"
+
+        # Настраиваем mock для cursor().pos()
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Сбрасываем время
+        im.last_periodic_check_time = time.time() - 2.5
+        im.points_time_accumulator = 0.0
+        im.work_time_accumulator = 0.0
+
+        # Вызываем первый periodic_check, симулирующий 2.5 секунды работы
+        # Ожидаем, что добавится 1 поинт привязанности и 2 секунды рабочего времени
+        im.periodic_check()
+
+        self.assertEqual(im.pending_points, 1)
+        self.assertEqual(im.pending_stats["work_seconds"], 2)
+        # Остаток в аккумуляторах должен быть 0.5с
+        self.assertAlmostEqual(im.points_time_accumulator, 0.5, places=1)
+        self.assertAlmostEqual(im.work_time_accumulator, 0.5, places=1)
+
+        db.close()
+
+    def test_laser_mode_transitions(self):
+        # Мокаем PetWindow и AnimationManager
+        mock_window = MagicMock()
+        mock_window.animation_manager.current_state = "idle"
+
+        # Настраиваем mock для cursor().pos()
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Переключаем лазер в True
+        im.toggle_laser_mode()
+        self.assertTrue(im.laser_mode)
+        mock_window.animation_manager.play_state.assert_called_with("hunting")
+        mock_window.setCursor.assert_called()
+
+        # Переключаем обратно в False
+        im.toggle_laser_mode()
+        self.assertFalse(im.laser_mode)
+        mock_window.animation_manager.play_state.assert_called_with("idle")
 
         db.close()
 
