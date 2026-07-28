@@ -13,6 +13,13 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     config = ConfigManager()
+
+    # Регистрация пользовательских скинов из конфига
+    from src.utils.bonding_utils import CAT_SKINS
+    custom_skins = config.get("custom_skins") or {}
+    for skin_id, name in custom_skins.items():
+        CAT_SKINS[skin_id] = name
+
     db = DataStore()
     db.log_event("app_start", "Приложение запущено")
 

@@ -67,12 +67,9 @@ class TrayMenu(QObject):
         self.menu.addSeparator()
 
         # Выбор скина
-        skin_menu = QMenu("Выбрать окрас", self.menu)
-        for skin_id, name in CAT_SKINS.items():
-            action = QAction(name, self)
-            action.triggered.connect(lambda checked=False, sid=skin_id: self.window.animation_manager.set_skin(sid))
-            skin_menu.addAction(action)
-        self.menu.addMenu(skin_menu)
+        self.skin_menu = QMenu("Выбрать окрас", self.menu)
+        self.update_skin_menu()
+        self.menu.addMenu(self.skin_menu)
 
         self.menu.addSeparator()
 
@@ -189,6 +186,8 @@ class TrayMenu(QObject):
             # Обновляем скин и прозрачность в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            # Обновляем меню скинов
+            self.update_skin_menu()
             # Обновляем режим "Поверх всех окон" в реальном времени
             self.window.set_always_on_top(self.window.config.get("always_on_top"))
             self.always_on_top_action.setChecked(self.window.config.get("always_on_top"))
@@ -223,3 +222,10 @@ class TrayMenu(QObject):
                 self.show_message("Мини-игра", "Лазерная указка активирована! 🔴")
             else:
                 self.show_message("Мини-игра", "Лазерная указка выключена.")
+
+    def update_skin_menu(self):
+        self.skin_menu.clear()
+        for skin_id, name in CAT_SKINS.items():
+            action = QAction(name, self)
+            action.triggered.connect(lambda checked=False, sid=skin_id: self.window.animation_manager.set_skin(sid))
+            self.skin_menu.addAction(action)

@@ -57,14 +57,15 @@ class SettingsDialog(QDialog):
 
         # Выбор скина
         layout.addWidget(QLabel("Окрас котика:"))
+        skin_layout = QHBoxLayout()
         self.skin_combo = QComboBox()
-        for skin_id, skin_name in CAT_SKINS.items():
-            self.skin_combo.addItem(skin_name, skin_id)
+        self.populate_skins()
+        skin_layout.addWidget(self.skin_combo)
 
-        index = self.skin_combo.findData(self.config.get("skin"))
-        if index >= 0:
-            self.skin_combo.setCurrentIndex(index)
-        layout.addWidget(self.skin_combo)
+        import_btn = QPushButton("Импорт .svg...")
+        import_btn.clicked.connect(self.import_custom_skin)
+        skin_layout.addWidget(import_btn)
+        layout.addLayout(skin_layout)
 
         # Кнопки
         btn_layout = QHBoxLayout()
@@ -87,3 +88,90 @@ class SettingsDialog(QDialog):
         self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
         self.config.set("skin", self.skin_combo.currentData())
         self.accept()
+
+    def populate_skins(self):
+        self.skin_combo.clear()
+        for skin_id, skin_name in CAT_SKINS.items():
+            self.skin_combo.addItem(skin_name, skin_id)
+        index = self.skin_combo.findData(self.config.get("skin"))
+        if index >= 0:
+            self.skin_combo.setCurrentIndex(index)
+
+    def import_custom_skin(self):
+        from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+        import shutil
+        import os
+        import time
+        from src.utils.paths import ANIMATIONS_DIR
+        from src.utils.bonding_utils import CAT_SKINS
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выбрать файл SVG скина",
+            "",
+            "Векторная графика (*.svg)"
+        )
+        if not file_path:
+            return
+
+        # Валидация файла
+        if not file_path.lower().endswith(".svg"):
+            QMessageBox.warning(self, "Ошибка", "Пожалуйста, выберите файл в формате .svg.")
+            return
+
+        # Проверка структуры (простая)
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read(1024)
+                if "<svg" not in content.lower():
+                    QMessageBox.warning(self, "Ошибка", "Выбранный файл не является валидным SVG.")
+                    return
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось прочитать файл: {e}")
+            return
+
+        # Спрашиваем название окраса
+        default_name = os.path.splitext(os.path.basename(file_path))[0].capitalize()
+        name, ok = QInputDialog.getText(
+            self,
+            "Импорт скина",
+            "Введите название для нового окраса:",
+            text=default_name
+        )
+        if not ok or not name.strip():
+            return
+
+        name = name.strip()
+
+        # Генерация ID
+        safe_name = "".join([c for c in name if c.isalnum() or c in ("_", "-")]).lower()
+        if not safe_name:
+            safe_name = "skin"
+        skin_id = f"custom_{safe_name}_{int(time.time())}"
+
+        # Копирование файла
+        dest_dir = os.path.join(ANIMATIONS_DIR, "svg_skins")
+        os.makedirs(dest_dir, exist_ok=True)
+        dest_path = os.path.join(dest_dir, f"cat_{skin_id}.svg")
+
+        try:
+            shutil.copy(file_path, dest_path)
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось скопировать файл: {e}")
+            return
+
+        # Сохранение в конфигурации
+        custom_skins = self.config.get("custom_skins") or {}
+        custom_skins[skin_id] = name
+        self.config.set("custom_skins", custom_skins)
+
+        # Регистрация в глобальном словаре
+        CAT_SKINS[skin_id] = name
+
+        # Обновление выпадающего списка и выбор нового скина
+        self.populate_skins()
+        new_index = self.skin_combo.findData(skin_id)
+        if new_index >= 0:
+            self.skin_combo.setCurrentIndex(new_index)
+
+        QMessageBox.information(self, "Успех", f"Скин '{name}' успешно импортирован!")

@@ -214,5 +214,49 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_custom_skins_integration(self):
+        # 1. Запись тестового SVG-файла
+        from src.utils.bonding_utils import CAT_SKINS
+        from src.core.animation_manager import AnimationManager
+        from src.utils.paths import ANIMATIONS_DIR
+        import shutil
+
+        test_svg_dir = os.path.join(ANIMATIONS_DIR, "svg_skins")
+        os.makedirs(test_svg_dir, exist_ok=True)
+        test_svg_path = os.path.join(test_svg_dir, "cat_custom_test_skin.svg")
+
+        with open(test_svg_path, "w", encoding="utf-8") as f:
+            f.write("<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><circle cx='50' cy='50' r='40'/></svg>")
+
+        # 2. Инициализация ConfigManager с фейковым путем
+        config = ConfigManager(self.config_path)
+        custom_skins = {"custom_test_skin": "Тестовый Окрас"}
+        config.set("custom_skins", custom_skins)
+
+        # Симулируем регистрацию скинов при старте
+        for skin_id, name in custom_skins.items():
+            CAT_SKINS[skin_id] = name
+
+        self.assertIn("custom_test_skin", CAT_SKINS)
+        self.assertEqual(CAT_SKINS["custom_test_skin"], "Тестовый Окрас")
+
+        # 3. Проверка того, что AnimationManager распознает этот скин
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        app = QApplication.instance() or QApplication([])
+
+        label = QLabel()
+        anim_mgr = AnimationManager(label, config)
+        anim_mgr.set_skin("custom_test_skin")
+
+        self.assertEqual(anim_mgr.skin, "custom_test_skin")
+        self.assertTrue(anim_mgr.current_anim_path.endswith("cat_custom_test_skin.svg"))
+
+        # Очистка
+        if os.path.exists(test_svg_path):
+            os.remove(test_svg_path)
+        if "custom_test_skin" in CAT_SKINS:
+            del CAT_SKINS["custom_test_skin"]
+
 if __name__ == '__main__':
     unittest.main()
