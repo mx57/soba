@@ -197,6 +197,12 @@ class TrayMenu(QObject):
             if self.window.timer_system:
                 self.window.timer_system.restart_stretch_timer()
             self.window.show_message("Настройки сохранены! 💾")
+        else:
+            # Даже если диалог был отклонен, скин мог быть импортирован или удален мгновенно.
+            # Поэтому мы в любом случае синхронизируем меню выбора окрасов в трее.
+            self.update_skin_menu()
+            # Также обновляем отображаемый скин (если удалили текущий активный, он мог сброситься на default)
+            self.window.animation_manager.set_skin(self.window.config.get("skin"))
 
     def show_stats(self, checked=False):
         if self.window.input_manager and self.window.input_manager.db:

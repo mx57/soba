@@ -258,5 +258,54 @@ class TestUtils(unittest.TestCase):
         if "custom_test_skin" in CAT_SKINS:
             del CAT_SKINS["custom_test_skin"]
 
+    def test_delete_custom_skin(self):
+        # 1. Подготовка тестового окружения
+        from src.utils.bonding_utils import CAT_SKINS
+        from src.utils.paths import ANIMATIONS_DIR
+        from src.ui.settings_dialog import SettingsDialog
+        from PySide6.QtWidgets import QMessageBox
+
+        config = ConfigManager(self.config_path)
+        config.set("skin", "custom_todel_skin")
+        config.set("custom_skins", {"custom_todel_skin": "Удаляемый Скин"})
+        CAT_SKINS["custom_todel_skin"] = "Удаляемый Скин"
+
+        test_svg_dir = os.path.join(ANIMATIONS_DIR, "svg_skins")
+        os.makedirs(test_svg_dir, exist_ok=True)
+        test_svg_path = os.path.join(test_svg_dir, "cat_custom_todel_skin.svg")
+        with open(test_svg_path, "w", encoding="utf-8") as f:
+            f.write("<svg></svg>")
+
+        self.assertTrue(os.path.exists(test_svg_path))
+
+        # 2. Мокаем QMessageBox.question и QMessageBox.information с try...finally для безопасности
+        original_question = QMessageBox.question
+        original_information = QMessageBox.information
+        QMessageBox.question = MagicMock(return_value=QMessageBox.Yes)
+        QMessageBox.information = MagicMock()
+
+        try:
+            os.environ["QT_QPA_PLATFORM"] = "offscreen"
+            from PySide6.QtWidgets import QApplication
+            app = QApplication.instance() or QApplication([])
+
+            # 3. Создаем диалог и проверяем, что кнопка удаления активна для этого скина
+            dialog = SettingsDialog(config)
+            self.assertEqual(dialog.skin_combo.currentData(), "custom_todel_skin")
+            self.assertTrue(dialog.delete_btn.isEnabled())
+
+            # 4. Вызываем удаление скина
+            dialog.delete_custom_skin()
+
+            # 5. Проверяем результаты
+            self.assertFalse(os.path.exists(test_svg_path))
+            self.assertNotIn("custom_todel_skin", CAT_SKINS)
+            self.assertEqual(config.get("skin"), "default")
+            self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
+        finally:
+            # Восстанавливаем моки гарантированно
+            QMessageBox.question = original_question
+            QMessageBox.information = original_information
+
 if __name__ == '__main__':
     unittest.main()

@@ -62,10 +62,18 @@ class SettingsDialog(QDialog):
         self.populate_skins()
         skin_layout.addWidget(self.skin_combo)
 
-        import_btn = QPushButton("Импорт .svg...")
+        import_btn = QPushButton("Импорт...")
         import_btn.clicked.connect(self.import_custom_skin)
         skin_layout.addWidget(import_btn)
+
+        self.delete_btn = QPushButton("Удалить")
+        self.delete_btn.clicked.connect(self.delete_custom_skin)
+        skin_layout.addWidget(self.delete_btn)
         layout.addLayout(skin_layout)
+
+        # Подключаем отслеживание смены скина для управления доступностью кнопки "Удалить"
+        self.skin_combo.currentIndexChanged.connect(self.on_skin_changed)
+        self.on_skin_changed()
 
         # Кнопки
         btn_layout = QHBoxLayout()
@@ -77,6 +85,60 @@ class SettingsDialog(QDialog):
         btn_layout.addWidget(save_btn)
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
+
+    def on_skin_changed(self, index=0):
+        current_skin_id = self.skin_combo.currentData()
+        is_custom = bool(current_skin_id and current_skin_id.startswith("custom_"))
+        self.delete_btn.setEnabled(is_custom)
+
+    def delete_custom_skin(self):
+        from PySide6.QtWidgets import QMessageBox
+        import os
+        from src.utils.paths import ANIMATIONS_DIR
+        from src.utils.bonding_utils import CAT_SKINS
+
+        skin_id = self.skin_combo.currentData()
+        if not skin_id or not skin_id.startswith("custom_"):
+            return
+
+        skin_name = self.skin_combo.currentText()
+        reply = QMessageBox.question(
+            self,
+            "Удалить окрас",
+            f"Вы уверены, что хотите удалить окрас '{skin_name}'?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+
+        # 1. Сброс текущей конфигурации скина, если мы удаляем активный скин
+        if self.config.get("skin") == skin_id:
+            self.config.set("skin", "default")
+
+        # 2. Удаление из настроек custom_skins
+        custom_skins = self.config.get("custom_skins") or {}
+        if skin_id in custom_skins:
+            del custom_skins[skin_id]
+            self.config.set("custom_skins", custom_skins)
+
+        # 3. Удаление из глобального словаря CAT_SKINS
+        if skin_id in CAT_SKINS:
+            del CAT_SKINS[skin_id]
+
+        # 4. Физическое удаление файла с диска
+        svg_path = os.path.join(ANIMATIONS_DIR, "svg_skins", f"cat_{skin_id}.svg")
+        if os.path.exists(svg_path):
+            try:
+                os.remove(svg_path)
+            except Exception as e:
+                print(f"Error deleting file {svg_path}: {e}")
+
+        # 5. Обновление комбобокса в диалоге
+        self.populate_skins()
+        self.on_skin_changed()
+
+        QMessageBox.information(self, "Успех", f"Окрас '{skin_name}' успешно удален.")
 
     def save_settings(self):
         self.config.set("username", self.name_edit.text())
