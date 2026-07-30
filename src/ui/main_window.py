@@ -243,6 +243,7 @@ class PetWindow(QMainWindow):
                     if self.shake_count > 4: # 5 резких движений подряд
                         if self.animation_manager.current_state != "shaking":
                             self.animation_manager.play_state("shaking")
+                            self.show_message("Ой, голова кружится! 🌪️")
                             if self.input_manager:
                                 self.input_manager.add_shake()
 

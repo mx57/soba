@@ -49,7 +49,7 @@ class TrayMenu(QObject):
         self.menu.addAction(feed_action)
 
         play_action = QAction("Поиграть", self)
-        play_action.triggered.connect(lambda checked=False: self.window.animation_manager.play_state("playing"))
+        play_action.triggered.connect(self.play_with_pet)
         self.menu.addAction(play_action)
 
         sleep_action = QAction("Уложить спать", self)
@@ -211,15 +211,24 @@ class TrayMenu(QObject):
             dialog = StatsDialog(self.window.input_manager.db, self.window)
             dialog.exec()
 
-    def feed_pet(self, checked=False):
-        self.window.animation_manager.play_state("eating")
+    def play_with_pet(self, checked=False):
         if self.window.input_manager:
+            self.window.input_manager.force_state("playing")
+        else:
+            self.window.animation_manager.play_state("playing")
+
+    def feed_pet(self, checked=False):
+        if self.window.input_manager:
+            self.window.input_manager.force_state("eating")
             self.window.input_manager.add_points(5)
             self.window.show_message("Мням! +5 ❤️")
             self.window.input_manager.pending_stats["total_feedings"] += 1
             if self.window.input_manager.db:
                 self.window.input_manager.db.log_event("feeding", "Котик покормлен")
             self.window.input_manager.check_for_achievements()
+        else:
+            self.window.animation_manager.play_state("eating")
+            self.window.show_message("Мням! +5 ❤️")
 
     def toggle_laser(self, checked):
         if self.window.input_manager:
