@@ -1,7 +1,8 @@
+import time
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout, QScrollArea, QWidget, QTabWidget
 from PySide6.QtCore import Qt
 from src.utils.bonding_utils import get_level_info, ACHIEVEMENTS
-from datetime import datetime
+from datetime import datetime, timezone
 
 class StatsDialog(QDialog):
     def __init__(self, db, parent=None):
@@ -177,8 +178,10 @@ class StatsDialog(QDialog):
             ts_str = ev[1]
             try:
                 # Попытка форматировать время для красоты (SQLite хранит в UTC обычно)
-                dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
-                time_display = dt.strftime("%H:%M")
+                dt_utc = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                # Конвертация UTC времени из базы в локальное время системы автоматически
+                dt_local = dt_utc.astimezone(None)
+                time_display = dt_local.strftime("%H:%M")
             except:
                 time_display = ts_str
 

@@ -40,3 +40,7 @@ if is_visible:
 ## 2026-07-10 - [Forced Animation State Prevention from Early Idle Reset]
 **Инсайт:** Быстрый сброс в состояние `idle` из фонового таймера-watchdog перебивает анимации мгновенных побочных эффектов, таких как «eating» или «playing», запускаемых вручную через меню трея. Метод `force_state(state, duration)` в `InputManager`, искусственно сдвигающий `last_input_time` вперед во времени, позволяет временно удержать котика в нужном состоянии на заданную длительность без создания разрозненных локальных таймеров.
 **Действие:** Для всех запускаемых вручную коротких состояний использовать `input_manager.force_state(state, duration=3.0)` вместо прямого вызова `play_state` в `AnimationManager`.
+
+## 2026-07-11 - [UTC Timestamps to Local Timezone Conversion in SQLite]
+**Инсайт:** Хранение меток времени в SQLite в UTC-формате (через `CURRENT_TIMESTAMP`) требует обязательной явной локализации при отображении на стороне интерфейса. Попытки ручного сдвига эпохи с использованием `time.timezone` и `time.daylight` могут приводить к ошибкам и игнорировать динамический перевод стрелок. Использование методов timezone из модуля datetime позволяет делать это нативно и безбажно.
+**Действие:** Конвертировать UTC-строку из БД SQLite обратно в локальное время системы через `datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).astimezone(None)`.
