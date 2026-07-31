@@ -67,6 +67,10 @@ class InputManager(QObject):
         self.last_pet_time = 0
         self.last_pet_mouse_pos = (0, 0)
 
+        # Форсированные состояния
+        self.forced_state_name = None
+        self.forced_state_expires = 0.0
+
         self.monitor.key_pressed.connect(self.handle_key)
         self.monitor.mouse_moved.connect(self.handle_mouse)
 
@@ -103,8 +107,10 @@ class InputManager(QObject):
 
     def force_state(self, state, duration=3.0):
         """Форсирует состояние котика и откладывает автоматический сброс в idle."""
+        self.forced_state_name = state
+        self.forced_state_expires = time.time() + duration
         self.window.animation_manager.play_state(state)
-        # Сдвигаем last_input_time вперед, чтобы в течение duration секунд idle_time оставался <= 2.0
+        # Также сдвигаем last_input_time вперед, чтобы в течение duration секунд idle_time оставался <= 2.0
         self.last_input_time = time.time() + duration - 2.0
 
     def start(self):
@@ -128,8 +134,25 @@ class InputManager(QObject):
         # 0. Обновление скользящего окна KPS
         self._update_kps()
 
+        # Проверяем, действует ли еще форсированное состояние
+        is_forced_active = False
+        if self.forced_state_name is not None:
+            if now < self.forced_state_expires:
+                is_forced_active = True
+                # Если текущее состояние в менеджере анимаций почему-то сбилось, но должно быть форсированным
+                if current_state != self.forced_state_name:
+                    self.window.animation_manager.play_state(self.forced_state_name)
+                    current_state = self.forced_state_name
+            else:
+                # Время форсированного состояния истекло, сбрасываем его
+                self.forced_state_name = None
+                self.forced_state_expires = 0.0
+
         # 1. Проверка бездействия и переходы состояний
-        if idle_time > 2.0:
+        if is_forced_active:
+            # Если активно форсированное состояние, игнорируем обычный сброс и автоматические переходы
+            pass
+        elif idle_time > 2.0:
             # Если нет ввода более 2 секунд - сброс активных состояний в idle
             if current_state in ["working", "overheat", "hunting", "playing", "eating"]:
                 self.window.animation_manager.play_state("idle")
@@ -292,6 +315,9 @@ class InputManager(QObject):
 
     def _reset_idle_state(self):
         """Возвращает котика в idle, если он спал или думал."""
+        # Если активно форсированное состояние, не перебиваем его обычным вводом
+        if self.forced_state_name is not None and time.time() < self.forced_state_expires:
+            return
         if self.window.animation_manager.current_state in ["sleeping", "thinking"]:
             self.window.animation_manager.play_state("idle")
 
@@ -299,6 +325,23 @@ class InputManager(QObject):
         now = time.time()
         self.last_input_time = now
         self._reset_idle_state()
+
+        # Если активно форсированное состояние, не прерываем его обычными клавишами
+        if self.forced_state_name is not None and now < self.forced_state_expires:
+            # Но учитываем в кликах
+            if self.db:
+                self.pending_stats["total_clicks"] += 1
+                total_virtual_clicks = self.total_clicks_cache + self.pending_stats["total_clicks"]
+                if total_virtual_clicks % 100 == 0:
+                    self.check_for_achievements()
+            # Обновление скользящего окна KPS
+            self.key_timestamps.append(now)
+            self._update_kps()
+            self.last_key_time = now
+            if self.typing_count > self.max_kps:
+                self.max_kps = self.typing_count
+                self.check_for_achievements()
+            return
 
         if self.db:
             self.pending_stats["total_clicks"] += 1
@@ -342,17 +385,19 @@ class InputManager(QObject):
             # чтобы избежать дорогостоящего вычисления корня (sqrt/**0.5) и возведения в степень (**2)
             dist_sq = dx * dx + dy * dy
 
-            # Если мышь движется быстро, активируем охоту (1500 px/sec)
-            # speed > 1500  =>  sqrt(dist_sq)/dt > 1500  =>  dist_sq > (1500 * dt)**2
-            threshold_fast = 1500 * dt
-            if dist_sq > threshold_fast * threshold_fast:
-                if self.window.animation_manager.current_state != "hunting":
-                    self.window.animation_manager.play_state("hunting")
-                    self.window.start_hunting(x, y)
-            elif dist_sq < (100 * dt) * (100 * dt):
-                # Если мышь замерла (speed < 100 px/sec), выходим из охоты через пару секунд
-                if self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
-                    self.window.animation_manager.play_state("idle")
+            # Если мышь движется быстро и форсированное состояние не активно, активируем охоту
+            if self.forced_state_name is None or now >= self.forced_state_expires:
+                # Если мышь движется быстро, активируем охоту (1500 px/sec)
+                # speed > 1500  =>  sqrt(dist_sq)/dt > 1500  =>  dist_sq > (1500 * dt)**2
+                threshold_fast = 1500 * dt
+                if dist_sq > threshold_fast * threshold_fast:
+                    if self.window.animation_manager.current_state != "hunting":
+                        self.window.animation_manager.play_state("hunting")
+                        self.window.start_hunting(x, y)
+                elif dist_sq < (100 * dt) * (100 * dt):
+                    # Если мышь замерла (speed < 100 px/sec), выходим из охоты через пару секунд
+                    if self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
+                        self.window.animation_manager.play_state("idle")
 
         self.last_mouse_pos = (x, y)
         self.last_mouse_time = now
@@ -378,14 +423,17 @@ class InputManager(QObject):
 
             # Кулдаун 500мс и требование к длине мазка движения (30px -> 900)
             if now - self.last_pet_time >= 0.5 and stroke_dist_sq >= 900:
-                if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
-                    self.window.animation_manager.play_state("playing")
-                    self.pending_stats["petting_count"] += 1
-                    if self.pending_stats["petting_count"] % 5 == 0:
-                        self.check_for_achievements()
-                    if now - self.last_purr_time > 2.0:
-                        self.window.sound_manager.play_sound("purr")
-                        self.last_purr_time = now
+                # Если активно другое форсированное состояние (например, eating), не сбиваем его
+                is_another_forced_active = self.forced_state_name is not None and self.forced_state_name != "playing" and now < self.forced_state_expires
+                if not is_another_forced_active:
+                    if self.window.animation_manager.current_state not in ["playing", "hunting", "shaking"]:
+                        self.force_state("playing", duration=3.0)
+                        self.pending_stats["petting_count"] += 1
+                        if self.pending_stats["petting_count"] % 5 == 0:
+                            self.check_for_achievements()
+                        if now - self.last_purr_time > 2.0:
+                            self.window.sound_manager.play_sound("purr")
+                            self.last_purr_time = now
                 self.last_pet_time = now
                 self.last_pet_mouse_pos = (x, y)
         else:

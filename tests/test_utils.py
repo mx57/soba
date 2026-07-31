@@ -230,6 +230,35 @@ class TestUtils(unittest.TestCase):
 
         # last_input_time should be shifted into the future (about now + 3 seconds)
         self.assertTrue(im.last_input_time > now + 2.5)
+        self.assertEqual(im.forced_state_name, "eating")
+        self.assertTrue(im.forced_state_expires > now + 4.5)
+
+        db.close()
+
+    def test_force_state_expiry_and_resets(self):
+        mock_window = MagicMock()
+        mock_window.animation_manager.current_state = "eating"
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Инициализируем форсированное состояние
+        im.force_state("eating", duration=0.1)
+        self.assertEqual(im.forced_state_name, "eating")
+
+        # Симулируем прохождение времени (истечение срока действия)
+        im.forced_state_expires = time.time() - 1.0
+
+        # periodic_check должен сбросить форсированное состояние и сбросить котика в idle, так как ввод не активен
+        im.last_periodic_check_time = time.time() - 1.0
+        im.last_input_time = time.time() - 5.0  # симулируем простой более 2 секунд
+        im.periodic_check()
+
+        self.assertIsNone(im.forced_state_name)
+        mock_window.animation_manager.play_state.assert_any_call("idle")
 
         db.close()
 

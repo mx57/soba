@@ -22,17 +22,33 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.always_on_top_check)
 
         # Громкость
-        layout.addWidget(QLabel("Громкость звука:"))
+        volume_header_layout = QHBoxLayout()
+        volume_header_layout.addWidget(QLabel("Громкость звука:"))
+        self.volume_val_label = QLabel(f"{self.config.get('volume')}%")
+        self.volume_val_label.setStyleSheet("font-weight: bold; color: #555;")
+        volume_header_layout.addStretch()
+        volume_header_layout.addWidget(self.volume_val_label)
+        layout.addLayout(volume_header_layout)
+
         self.volume_slider = QSlider(Qt.Horizontal)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(self.config.get("volume"))
+        self.volume_slider.valueChanged.connect(lambda v: self.volume_val_label.setText(f"{v}%"))
         layout.addWidget(self.volume_slider)
 
         # Прозрачность
-        layout.addWidget(QLabel("Прозрачность окна:"))
+        opacity_header_layout = QHBoxLayout()
+        opacity_header_layout.addWidget(QLabel("Прозрачность окна:"))
+        self.opacity_val_label = QLabel(f"{self.config.get('opacity')}%")
+        self.opacity_val_label.setStyleSheet("font-weight: bold; color: #555;")
+        opacity_header_layout.addStretch()
+        opacity_header_layout.addWidget(self.opacity_val_label)
+        layout.addLayout(opacity_header_layout)
+
         self.opacity_slider = QSlider(Qt.Horizontal)
         self.opacity_slider.setRange(20, 100)
         self.opacity_slider.setValue(self.config.get("opacity"))
+        self.opacity_slider.valueChanged.connect(lambda v: self.opacity_val_label.setText(f"{v}%"))
         layout.addWidget(self.opacity_slider)
 
         # Интервал растяжки
