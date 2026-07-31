@@ -101,6 +101,12 @@ class InputManager(QObject):
             self.max_kps = self.stats_cache.get("max_kps", 0)
             self.total_clicks_cache = self.stats_cache.get("total_clicks", 0)
 
+    def force_state(self, state, duration=3.0):
+        """Форсирует состояние котика и откладывает автоматический сброс в idle."""
+        self.window.animation_manager.play_state(state)
+        # Сдвигаем last_input_time вперед, чтобы в течение duration секунд idle_time оставался <= 2.0
+        self.last_input_time = time.time() + duration - 2.0
+
     def start(self):
         self.monitor.start()
         self.watchdog.start(500) # Проверка каждые 0.5 сек

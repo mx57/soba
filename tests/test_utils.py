@@ -214,6 +214,31 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_force_state_delays_idle(self):
+        mock_window = MagicMock()
+        mock_window.animation_manager.current_state = "idle"
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        now = time.time()
+        # Force "eating" state with a duration of 5 seconds
+        im.force_state("eating", duration=5.0)
+
+        # last_input_time should be shifted into the future (about now + 3 seconds)
+        self.assertTrue(im.last_input_time > now + 2.5)
+
+        db.close()
+
+    def test_sound_manager_with_none_config(self):
+        from src.utils.sound_manager import SoundManager
+        sm = SoundManager(None)
+        # Test that play_sound on a non-existent sound returns gracefully and doesn't crash on None config
+        sm.play_sound("non_existent_sound_123")
+
     def test_custom_skins_integration(self):
         # 1. Запись тестового SVG-файла
         from src.utils.bonding_utils import CAT_SKINS

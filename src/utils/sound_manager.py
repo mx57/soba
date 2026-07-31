@@ -18,5 +18,6 @@ class SoundManager:
             self.sounds[sound_name] = effect
 
         effect = self.sounds[sound_name]
-        effect.setVolume(self.config.get("volume") / 100.0)
+        volume = self.config.get("volume") if self.config else 70
+        effect.setVolume(volume / 100.0)
         effect.play()
