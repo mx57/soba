@@ -312,6 +312,66 @@ class TestUtils(unittest.TestCase):
         if "custom_test_skin" in CAT_SKINS:
             del CAT_SKINS["custom_test_skin"]
 
+    def test_pet_size_configuration_and_scaling(self):
+        config = ConfigManager(self.config_path)
+        # 1. Проверяем дефолтное значение pet_size
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Изменение размера котика
+        config.set("pet_size", 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        window = PetWindow(config)
+        # 3. Проверяем, что исходный размер окна соответствует новому размеру питомца
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.original_size.height(), 150)
+
+        # 4. Проверяем динамический метод изменения размера
+        window.set_pet_size(200)
+        self.assertEqual(window.original_size.width(), 200)
+        self.assertEqual(window.original_size.height(), 200)
+        self.assertEqual(config.get("pet_size"), 200)
+
+    def test_dynamic_petting_threshold(self):
+        mock_window = MagicMock()
+        # Задаем ширину окна 100 пикселей. Ожидаемый порог поглаживания 60 пикселей (60% от 100).
+        # Порог в квадрате должен быть 3600.
+        mock_window.width.return_value = 100
+        mock_window.height.return_value = 100
+
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        mock_window.animation_manager.current_state = "idle"
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Проверим, что котик реагирует при движении мыши (координата x сдвигается от 100 к 150)
+        im.handle_mouse(150, 150)
+        self.assertEqual(im.pending_stats["petting_count"], 0)
+
+        # Симулируем поглаживание: проходим кулдаун и расстояние > 30px
+        im.last_pet_time -= 1.0
+        im.handle_mouse(155, 155) # движение на 7px, поглаживание не засчитано
+        self.assertEqual(im.pending_stats["petting_count"], 0)
+
+        im.last_pet_time -= 1.0
+        im.handle_mouse(190, 190) # движение на 49px (расстояние > 30px), поглаживание внутри круга 60px засчитано
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+
     def test_delete_custom_skin(self):
         # 1. Подготовка тестового окружения
         from src.utils.bonding_utils import CAT_SKINS

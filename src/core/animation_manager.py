@@ -128,8 +128,9 @@ class AnimationManager:
             angle = 5 * math.sin(self.frame_counter * 0.8)
             painter.rotate(angle)
         elif self.current_state == "happy":
-            # Прыжки
-            painter.translate(0, -abs(15 * math.sin(self.frame_counter * 0.5)))
+            # Прыжки, пропорциональные высоте окна котика
+            jump_amplitude = size.height() * 0.15
+            painter.translate(0, -abs(jump_amplitude * math.sin(self.frame_counter * 0.5)))
         elif self.current_state == "sleeping":
             # Глубокое медленное дыхание + наклон
             scale = 1.0 + 0.05 * math.sin(self.frame_counter * 0.1)
@@ -147,9 +148,10 @@ class AnimationManager:
             # Растягивание
             painter.scale(0.8, 1.4)
         elif self.current_state == "eating":
-            # Наклоны головы вперед-назад при еде
+            # Наклоны головы вперед-назад при еде, пропорциональные высоте окна
             scale_y = 1.0 + 0.1 * abs(math.sin(self.frame_counter * 0.8))
-            painter.translate(0, 10 * (scale_y - 1.0))
+            eat_offset = size.height() * 0.1
+            painter.translate(0, eat_offset * (scale_y - 1.0))
             painter.scale(1.0, scale_y)
         elif self.current_state == "thinking":
             # Наклон + покачивание
