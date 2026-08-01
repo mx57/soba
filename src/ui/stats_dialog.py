@@ -4,6 +4,8 @@ from PySide6.QtCore import Qt
 from src.utils.bonding_utils import get_level_info, ACHIEVEMENTS
 from datetime import datetime, timezone
 
+from PySide6.QtCore import QTimer
+
 class StatsDialog(QDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -11,15 +13,18 @@ class StatsDialog(QDialog):
         self.setWindowTitle("Статистика Котика")
         self.setFixedWidth(320)
 
+        # Список для обновления шкал прогресса заблокированных достижений на лету
+        self.locked_progress_bars = {}
+
         main_layout = QVBoxLayout(self)
 
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs)
 
         # Вкладка 1: Прогресс
-        progress_tab = QWidget()
-        self.setup_progress_tab(progress_tab)
-        self.tabs.addTab(progress_tab, "Прогресс")
+        self.progress_tab = QWidget()
+        self.setup_progress_tab(self.progress_tab)
+        self.tabs.addTab(self.progress_tab, "Прогресс")
 
         # Вкладка 2: История
         history_tab = QWidget()
@@ -31,42 +36,48 @@ class StatsDialog(QDialog):
         close_btn.clicked.connect(self.accept)
         main_layout.addWidget(close_btn)
 
+        # Таймер обновления данных в реальном времени
+        self.update_timer = QTimer(self)
+        self.update_timer.timeout.connect(self.update_stats_live)
+        self.update_timer.start(500)
+
     def setup_progress_tab(self, widget):
         layout = QVBoxLayout(widget)
 
         points = self.db.get_affection_points()
+        if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+            points += self.parent().input_manager.pending_points
         level, title, points_in_level, points_for_next_level = get_level_info(points)
 
         # Заголовок
-        title_label = QLabel(f"Уровень {level}: {title}")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 5px;")
-        layout.addWidget(title_label)
+        self.title_label = QLabel(f"Уровень {level}: {title}")
+        self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 5px;")
+        layout.addWidget(self.title_label)
 
         # Общие очки и KPS в одной строке
         stats_row = QHBoxLayout()
-        points_label = QLabel(f"Всего: {points} ❤️")
-        points_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        self.points_label = QLabel(f"Всего: {points} ❤️")
+        self.points_label.setStyleSheet("font-weight: bold; font-size: 12px;")
 
         max_kps = self.db.get_stat("max_kps")
-        kps_label = QLabel(f"Рекорд: {max_kps} кл/сек ⚡")
-        kps_label.setStyleSheet("color: #555; font-size: 11px;")
+        if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+            max_kps = max(max_kps, self.parent().input_manager.max_kps)
+        self.kps_label = QLabel(f"Рекорд: {max_kps} кл/сек ⚡")
+        self.kps_label.setStyleSheet("color: #555; font-size: 11px;")
 
-        stats_row.addWidget(points_label)
+        stats_row.addWidget(self.points_label)
         stats_row.addStretch()
-        stats_row.addWidget(kps_label)
+        stats_row.addWidget(self.kps_label)
         layout.addLayout(stats_row)
 
         # Прогресс бар
-        if points_for_next_level > 0:
-            layout.addWidget(QLabel(f"До следующего уровня: {points_for_next_level - points_in_level}"))
-            progress = QProgressBar()
-            progress.setMaximum(points_for_next_level)
-            progress.setValue(points_in_level)
-            progress.setFormat("%v / %m")
-            layout.addWidget(progress)
-        else:
-            layout.addWidget(QLabel("Максимальный уровень достигнут! 🎉"))
+        self.next_level_desc_label = QLabel()
+        layout.addWidget(self.next_level_desc_label)
+        self.level_progress = QProgressBar()
+        layout.addWidget(self.level_progress)
+
+        self._update_level_progress_visuals(points, points_in_level, points_for_next_level)
 
         layout.addSpacing(10)
         layout.addWidget(QLabel("<b>Достижения:</b>"))
@@ -94,6 +105,7 @@ class StatsDialog(QDialog):
 
             # Расчет прогресса
             progress_text = ""
+            current_val = 0
             if not is_unlocked and 'goal' in ach_info and 'stat' in ach_info:
                 if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
                     im = self.parent().input_manager
@@ -141,6 +153,8 @@ class StatsDialog(QDialog):
                     }
                 """)
                 ach_text_layout.addWidget(prog_bar)
+                # Сохраняем ссылку для обновления в реальном времени
+                self.locked_progress_bars[ach_id] = (prog_bar, info_label, ach_info)
 
             ach_item_layout.addLayout(ach_text_layout)
             ach_item_layout.addStretch()
@@ -150,6 +164,71 @@ class StatsDialog(QDialog):
         scroll.setWidget(scroll_content)
         scroll.setFixedHeight(200)
         layout.addWidget(scroll)
+
+    def _update_level_progress_visuals(self, points, points_in_level, points_for_next_level):
+        if points_for_next_level > 0:
+            self.next_level_desc_label.setText(f"До следующего уровня: {points_for_next_level - points_in_level}")
+            self.level_progress.setMaximum(points_for_next_level)
+            self.level_progress.setValue(points_in_level)
+            self.level_progress.setFormat("%v / %m")
+            self.level_progress.show()
+        else:
+            self.next_level_desc_label.setText("Максимальный уровень достигнут! 🎉")
+            self.level_progress.hide()
+
+    def update_stats_live(self):
+        """Регулярно опрашивает менеджер ввода и БД для обновления прогресса на лету."""
+        points = self.db.get_affection_points()
+        max_kps = self.db.get_stat("max_kps")
+
+        if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+            im = self.parent().input_manager
+            points += im.pending_points
+            max_kps = max(max_kps, im.max_kps)
+
+        level, title, points_in_level, points_for_next_level = get_level_info(points)
+
+        # 1. Обновляем заголовок уровня и общие очки/KPS
+        self.title_label.setText(f"Уровень {level}: {title}")
+        self.points_label.setText(f"Всего: {points} ❤️")
+        self.kps_label.setText(f"Рекорд: {max_kps} кл/сек ⚡")
+
+        # 2. Обновляем уровень прогресса
+        self._update_level_progress_visuals(points, points_in_level, points_for_next_level)
+
+        # 3. Обновляем шкалы прогресса для закрытых достижений
+        unlocked = self.db.get_unlocked_achievements()
+        for ach_id, (prog_bar, label, ach_info) in list(self.locked_progress_bars.items()):
+            if ach_id in unlocked:
+                # Если достижение было разблокировано прямо сейчас, мы могли бы перерисовать,
+                # но для простоты и безопасности просто убираем его из отслеживания обновления
+                del self.locked_progress_bars[ach_id]
+                continue
+
+            current_val = 0
+            if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+                im = self.parent().input_manager
+                if ach_info['stat'] == 'bonding_points':
+                    current_val = im.last_affection_points + im.pending_points
+                elif ach_info['stat'] == 'total_clicks':
+                    current_val = im.total_clicks_cache + im.pending_stats.get('total_clicks', 0)
+                elif ach_info['stat'] == 'max_kps':
+                    current_val = im.max_kps
+                else:
+                    current_val = self.db.get_stat(ach_info['stat']) + im.pending_stats.get(ach_info['stat'], 0)
+            else:
+                current_val = self.db.get_stat(ach_info['stat'])
+
+            if ach_info['stat'] == 'level':
+                current_val = level
+
+            goal = ach_info['goal']
+            prog_bar.setValue(min(current_val, goal))
+
+            progress_text = ""
+            if goal > 0:
+                progress_text = f" <span style='color: #888;'>({current_val}/{goal})</span>"
+            label.setText(f"<b>{ach_info['title']}</b>{progress_text}<br/><small>{ach_info['desc']}</small>")
 
     def setup_history_tab(self, widget):
         layout = QVBoxLayout(widget)
