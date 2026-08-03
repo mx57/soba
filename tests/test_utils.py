@@ -361,5 +361,84 @@ class TestUtils(unittest.TestCase):
             QMessageBox.question = original_question
             QMessageBox.information = original_information
 
+    def test_settings_dialog_audio_feedback(self):
+        # Тестируем интерактивную обратную связь по звуку при изменении ползунка громкости
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # Создаем родительское окно (PetWindow) с мокнутым SoundManager
+        from src.ui.main_window import PetWindow
+        parent_window = PetWindow(config)
+        parent_window.sound_manager = MagicMock()
+
+        from src.ui.settings_dialog import SettingsDialog
+        dialog = SettingsDialog(config, parent_window)
+
+        # Симулируем released на слайдере громкости
+        dialog.volume_slider.setValue(45)
+        dialog.volume_slider.sliderReleased.emit()
+
+        # Проверяем, что проигрался тестовый звук meow с громкостью 45
+        parent_window.sound_manager.play_sound.assert_called_once_with("meow", volume=45)
+
+    def test_stats_dialog_realtime_updating_logic(self):
+        # Тестируем точечное обновление StatsDialog на таймере (включая учет данных в памяти)
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        db = DataStore(self.db_path)
+        db.log_event("app_start", "Начало работы")
+
+        from src.ui.main_window import PetWindow
+        parent_window = PetWindow(config)
+
+        # Настраиваем InputManager с активным взаимодействием (очки и клики в памяти)
+        from src.core.input_manager import InputManager
+        im = InputManager(parent_window, db)
+        im.last_affection_points = 10
+        im.pending_points = 5  # Итого 15 очков привязанности
+        im.total_clicks_cache = 100
+        im.pending_stats["total_clicks"] = 50  # Итого 150 кликов
+        im.max_kps = 8
+        parent_window.input_manager = im
+
+        from src.ui.stats_dialog import StatsDialog
+        dialog = StatsDialog(db, parent_window)
+
+        # 1. Проверяем корректность начальных значений при создании
+        self.assertEqual(dialog.points_label.text(), "Всего: 15 ❤️")
+        self.assertEqual(dialog.kps_label.text(), "Рекорд: 8 кл/сек ⚡")
+
+        # 2. Изменяем данные в памяти (симулируем активность пользователя в процессе открытого окна)
+        im.pending_points = 10  # Новое итоговое значение очков: 20 ❤️
+        im.max_kps = 12         # Новый рекорд KPS
+
+        # Логируем новое событие, чтобы проверить и автоматическое обновление истории
+        db.log_event("feeding", "Мням вкуснятина")
+
+        # 3. Запускаем периодический обработчик обновлений по таймеру напрямую
+        dialog.update_realtime_data()
+
+        # 4. Проверяем, что значения обновились в реальном времени
+        self.assertEqual(dialog.points_label.text(), "Всего: 20 ❤️")
+        self.assertEqual(dialog.kps_label.text(), "Рекорд: 12 кл/сек ⚡")
+
+        # Так как вкладка Истории не активна (currentIndex == 0), история не должна пересобираться
+        self.assertNotEqual(dialog.last_max_activity_id, 2)
+
+        # Делаем вкладку Истории активной и вызываем обновление
+        dialog.tabs.setCurrentIndex(1)
+        dialog.update_realtime_data()
+
+        # Теперь история пересобралась, проверяем, что сохранен максимальный ID записи
+        self.assertTrue(dialog.last_max_activity_id > 0)
+
+        db.close()
+
 if __name__ == '__main__':
     unittest.main()
