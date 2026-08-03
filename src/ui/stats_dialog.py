@@ -1,6 +1,6 @@
 import time
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout, QScrollArea, QWidget, QTabWidget
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from src.utils.bonding_utils import get_level_info, ACHIEVEMENTS
 from datetime import datetime, timezone
 
@@ -26,47 +26,54 @@ class StatsDialog(QDialog):
         self.setup_history_tab(history_tab)
         self.tabs.addTab(history_tab, "История")
 
+        # Инициализируем значения
+        self.update_progress_ui()
+        self.update_history_ui()
+
+        # Таймер для обновления UI в реальном времени
+        self.update_timer = QTimer(self)
+        self.update_timer.timeout.connect(self.update_ui)
+        self.update_timer.start(500) # Обновление каждые 500мс
+
         # Кнопка закрытия
         close_btn = QPushButton("Закрыть")
         close_btn.clicked.connect(self.accept)
         main_layout.addWidget(close_btn)
 
+    def update_ui(self):
+        self.update_progress_ui()
+        if self.tabs.currentIndex() == 1:
+            self.update_history_ui()
+
     def setup_progress_tab(self, widget):
         layout = QVBoxLayout(widget)
 
-        points = self.db.get_affection_points()
-        level, title, points_in_level, points_for_next_level = get_level_info(points)
-
         # Заголовок
-        title_label = QLabel(f"Уровень {level}: {title}")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 5px;")
-        layout.addWidget(title_label)
+        self.title_label = QLabel()
+        self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 5px;")
+        layout.addWidget(self.title_label)
 
         # Общие очки и KPS в одной строке
         stats_row = QHBoxLayout()
-        points_label = QLabel(f"Всего: {points} ❤️")
-        points_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        self.points_label = QLabel()
+        self.points_label.setStyleSheet("font-weight: bold; font-size: 12px;")
 
-        max_kps = self.db.get_stat("max_kps")
-        kps_label = QLabel(f"Рекорд: {max_kps} кл/сек ⚡")
-        kps_label.setStyleSheet("color: #555; font-size: 11px;")
+        self.kps_label = QLabel()
+        self.kps_label.setStyleSheet("color: #555; font-size: 11px;")
 
-        stats_row.addWidget(points_label)
+        stats_row.addWidget(self.points_label)
         stats_row.addStretch()
-        stats_row.addWidget(kps_label)
+        stats_row.addWidget(self.kps_label)
         layout.addLayout(stats_row)
 
         # Прогресс бар
-        if points_for_next_level > 0:
-            layout.addWidget(QLabel(f"До следующего уровня: {points_for_next_level - points_in_level}"))
-            progress = QProgressBar()
-            progress.setMaximum(points_for_next_level)
-            progress.setValue(points_in_level)
-            progress.setFormat("%v / %m")
-            layout.addWidget(progress)
-        else:
-            layout.addWidget(QLabel("Максимальный уровень достигнут! 🎉"))
+        self.next_level_label = QLabel()
+        layout.addWidget(self.next_level_label)
+
+        self.level_progress_bar = QProgressBar()
+        self.level_progress_bar.setFormat("%v / %m")
+        layout.addWidget(self.level_progress_bar)
 
         layout.addSpacing(10)
         layout.addWidget(QLabel("<b>Достижения:</b>"))
@@ -78,55 +85,24 @@ class StatsDialog(QDialog):
         scroll_layout.setSpacing(10)
         scroll_layout.setContentsMargins(5, 5, 5, 5)
 
-        unlocked = self.db.get_unlocked_achievements()
+        self.achievement_widgets = {}
 
         for ach_id, ach_info in ACHIEVEMENTS.items():
             ach_widget = QWidget()
             ach_item_layout = QHBoxLayout(ach_widget)
             ach_item_layout.setContentsMargins(0, 0, 0, 0)
 
-            is_unlocked = ach_id in unlocked
-            icon = ach_info['icon'] if is_unlocked else "🔒"
+            icon_label = QLabel()
+            ach_item_layout.addWidget(icon_label)
 
-            label_text = f"<span style='font-size: 20px;'>{icon}</span>"
-            item_label = QLabel(label_text)
-            ach_item_layout.addWidget(item_label)
-
-            # Расчет прогресса
-            progress_text = ""
-            if not is_unlocked and 'goal' in ach_info and 'stat' in ach_info:
-                if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
-                    im = self.parent().input_manager
-                    if ach_info['stat'] == 'bonding_points':
-                        current_val = im.last_affection_points + im.pending_points
-                    elif ach_info['stat'] == 'total_clicks':
-                        current_val = im.total_clicks_cache + im.pending_stats.get('total_clicks', 0)
-                    elif ach_info['stat'] == 'max_kps':
-                        current_val = im.max_kps
-                    else:
-                        current_val = self.db.get_stat(ach_info['stat']) + im.pending_stats.get(ach_info['stat'], 0)
-                else:
-                    current_val = self.db.get_stat(ach_info['stat'])
-
-                if ach_info['stat'] == 'level':
-                    current_val, _, _, _ = get_level_info(points)
-
-                goal = ach_info['goal']
-                if goal > 0:
-                    progress_text = f" <span style='color: #888;'>({current_val}/{goal})</span>"
-
-            info_label = QLabel(f"<b>{ach_info['title']}</b>{progress_text}<br/><small>{ach_info['desc']}</small>")
-            if not is_unlocked:
-                info_label.setStyleSheet("color: #888;")
-
-            # Добавляем прогресс-бар для закрытых достижений
             ach_text_layout = QVBoxLayout()
+            info_label = QLabel()
             ach_text_layout.addWidget(info_label)
 
-            if not is_unlocked and 'goal' in ach_info and goal > 0:
+            prog_bar = None
+            if 'goal' in ach_info and ach_info['goal'] > 0:
                 prog_bar = QProgressBar()
-                prog_bar.setMaximum(goal)
-                prog_bar.setValue(min(current_val, goal))
+                prog_bar.setMaximum(ach_info['goal'])
                 prog_bar.setFixedHeight(10)
                 prog_bar.setTextVisible(False)
                 prog_bar.setStyleSheet("""
@@ -147,20 +123,122 @@ class StatsDialog(QDialog):
 
             scroll_layout.addWidget(ach_widget)
 
+            self.achievement_widgets[ach_id] = {
+                'icon_label': icon_label,
+                'info_label': info_label,
+                'prog_bar': prog_bar,
+                'widget': ach_widget
+            }
+
         scroll.setWidget(scroll_content)
         scroll.setFixedHeight(200)
         layout.addWidget(scroll)
 
+    def update_progress_ui(self):
+        # Получаем данные о привязанности и KPS
+        im = None
+        if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+            im = self.parent().input_manager
+
+        if im:
+            points = im.last_affection_points + im.pending_points
+            max_kps = im.max_kps
+        else:
+            points = self.db.get_affection_points()
+            max_kps = self.db.get_stat("max_kps")
+
+        level, title, points_in_level, points_for_next_level = get_level_info(points)
+
+        # Обновляем основные метки
+        self.title_label.setText(f"Уровень {level}: {title}")
+        self.points_label.setText(f"Всего: {points} ❤️")
+        self.kps_label.setText(f"Рекорд: {max_kps} кл/сек ⚡")
+
+        # Обновляем прогресс-бар уровня
+        if points_for_next_level > 0:
+            self.next_level_label.setText(f"До следующего уровня: {points_for_next_level - points_in_level}")
+            self.level_progress_bar.setVisible(True)
+            self.level_progress_bar.setMaximum(points_for_next_level)
+            self.level_progress_bar.setValue(points_in_level)
+        else:
+            self.next_level_label.setText("Максимальный уровень достигнут! 🎉")
+            self.level_progress_bar.setVisible(False)
+
+        # Получаем разблокированные достижения
+        if im:
+            unlocked = im.unlocked_achievements
+        else:
+            unlocked = self.db.get_unlocked_achievements()
+
+        # Обновляем виджеты достижений
+        for ach_id, ach_info in ACHIEVEMENTS.items():
+            ref = self.achievement_widgets[ach_id]
+            is_unlocked = ach_id in unlocked
+
+            # Иконка
+            icon = ach_info['icon'] if is_unlocked else "🔒"
+            ref['icon_label'].setText(f"<span style='font-size: 20px;'>{icon}</span>")
+
+            # Текущее значение прогресса
+            current_val = 0
+            if 'stat' in ach_info:
+                stat_name = ach_info['stat']
+                if stat_name == 'level':
+                    current_val = level
+                elif stat_name == 'bonding_points':
+                    current_val = points
+                elif stat_name == 'total_clicks':
+                    current_val = im.total_clicks_cache + im.pending_stats.get('total_clicks', 0) if im else self.db.get_stat('total_clicks')
+                elif stat_name == 'max_kps':
+                    current_val = max_kps
+                else:
+                    current_val = self.db.get_stat(stat_name) + (im.pending_stats.get(stat_name, 0) if im else 0)
+
+            # Текст с прогрессом
+            progress_text = ""
+            if not is_unlocked and 'goal' in ach_info and ach_info['goal'] > 0:
+                progress_text = f" <span style='color: #888;'>({current_val}/{ach_info['goal']})</span>"
+
+            info_text = f"<b>{ach_info['title']}</b>{progress_text}<br/><small>{ach_info['desc']}</small>"
+            ref['info_label'].setText(info_text)
+
+            if is_unlocked:
+                ref['info_label'].setStyleSheet("")
+                if ref['prog_bar']:
+                    ref['prog_bar'].setVisible(False)
+            else:
+                ref['info_label'].setStyleSheet("color: #888;")
+                if ref['prog_bar']:
+                    ref['prog_bar'].setVisible(True)
+                    ref['prog_bar'].setValue(min(current_val, ach_info['goal']))
+
     def setup_history_tab(self, widget):
         layout = QVBoxLayout(widget)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setAlignment(Qt.AlignTop)
+        self.history_scroll = QScrollArea()
+        self.history_scroll.setWidgetResizable(True)
+        self.history_content = QWidget()
+        self.history_layout = QVBoxLayout(self.history_content)
+        self.history_layout.setAlignment(Qt.AlignTop)
 
+        self.history_scroll.setWidget(self.history_content)
+        layout.addWidget(self.history_scroll)
+
+        self.last_events_cache = []
+
+    def update_history_ui(self):
         events = self.db.get_recent_activity(30)
+        # Оптимизация: не перерисовываем историю, если события не изменились
+        if events == self.last_events_cache:
+            return
+        self.last_events_cache = events
+
+        # Очищаем старые элементы истории
+        while self.history_layout.count() > 0:
+            item = self.history_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
 
         type_icons = {
             "app_start": "🚀",
@@ -171,7 +249,9 @@ class StatsDialog(QDialog):
         }
 
         if not events:
-            scroll_layout.addWidget(QLabel("История событий пуста..."))
+            no_events_label = QLabel("История событий пуста...")
+            self.history_layout.addWidget(no_events_label)
+            return
 
         for ev in events:
             # ev format: (id, timestamp, event_type, description)
@@ -182,7 +262,7 @@ class StatsDialog(QDialog):
                 # Конвертация UTC времени из базы в локальное время системы автоматически
                 dt_local = dt_utc.astimezone(None)
                 time_display = dt_local.strftime("%H:%M")
-            except:
+            except Exception:
                 time_display = ts_str
 
             icon = type_icons.get(ev[2], "📝")
@@ -195,13 +275,10 @@ class StatsDialog(QDialog):
             label.setWordWrap(True)
             item_layout.addWidget(label)
 
-            scroll_layout.addWidget(item)
+            self.history_layout.addWidget(item)
 
             # Разделитель
             line = QWidget()
             line.setFixedHeight(1)
             line.setStyleSheet("background-color: #eee;")
-            scroll_layout.addWidget(line)
-
-        scroll.setWidget(scroll_content)
-        layout.addWidget(scroll)
+            self.history_layout.addWidget(line)
