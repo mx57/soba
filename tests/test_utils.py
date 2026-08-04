@@ -361,5 +361,56 @@ class TestUtils(unittest.TestCase):
             QMessageBox.question = original_question
             QMessageBox.information = original_information
 
+    def test_sound_manager_volume_override(self):
+        from src.utils.sound_manager import SoundManager
+        from PySide6.QtMultimedia import QSoundEffect
+
+        config = ConfigManager(self.config_path)
+        config.set("volume", 50)
+        sm = SoundManager(config)
+
+        # Создаем фиктивный QSoundEffect
+        mock_effect = MagicMock(spec=QSoundEffect)
+        sm.sounds["test_meow"] = mock_effect
+
+        # Проверка воспроизведения со стандартной громкостью
+        sm.play_sound("test_meow")
+        mock_effect.setVolume.assert_called_with(0.5)
+        mock_effect.play.assert_called()
+
+        # Проверка воспроизведения с переопределенной громкостью
+        sm.play_sound("test_meow", volume=80)
+        mock_effect.setVolume.assert_called_with(0.8)
+
+    def test_animation_manager_current_fps(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from src.core.animation_manager import AnimationManager
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Проверка дефолтного значения
+        self.assertEqual(am.current_fps, 12)
+
+        # Смена состояния
+        am.play_state("sleeping")
+        self.assertEqual(am.current_fps, 4)
+
+        am.play_state("overheat")
+        self.assertEqual(am.current_fps, 20)
+
+        am.play_state("shaking")
+        self.assertEqual(am.current_fps, 20)
+
+        am.play_state("idle")
+        self.assertEqual(am.current_fps, 12)
+
+        # Тест кастомного FPS
+        am.current_fps = 15
+        self.assertEqual(am.current_fps, 15)
+
 if __name__ == '__main__':
     unittest.main()
