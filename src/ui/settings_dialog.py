@@ -34,6 +34,7 @@ class SettingsDialog(QDialog):
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(self.config.get("volume"))
         self.volume_slider.valueChanged.connect(lambda v: self.volume_val_label.setText(f"{v}%"))
+        self.volume_slider.sliderReleased.connect(self.play_test_sound)
         layout.addWidget(self.volume_slider)
 
         # Прозрачность
@@ -101,6 +102,12 @@ class SettingsDialog(QDialog):
         btn_layout.addWidget(save_btn)
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
+
+    def play_test_sound(self):
+        # Если есть родительское окно с менеджером звуков, проигрываем звук через него
+        parent = self.parent()
+        if parent and hasattr(parent, "sound_manager") and parent.sound_manager:
+            parent.sound_manager.play_sound("meow", volume=self.volume_slider.value())
 
     def on_skin_changed(self, index=0):
         current_skin_id = self.skin_combo.currentData()

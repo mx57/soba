@@ -24,22 +24,29 @@ class AnimationManager:
         self.cached_pixmap = None
         self.last_size = QSize(0, 0)
         self.main_window = self.label.window()
+        self._current_fps = 12
 
         # Таймер для процедурной SVG анимации
         self.anim_timer = QTimer()
         self.anim_timer.timeout.connect(self.update_frame)
         self.frame_counter = 0
 
+    @property
+    def current_fps(self):
+        """Возвращает текущую заданную частоту кадров (FPS)."""
+        return self._current_fps
+
+    @current_fps.setter
+    def current_fps(self, value):
+        """Устанавливает текущую заданную частоту кадров (FPS)."""
+        self._current_fps = value
+
     def set_animation(self, path):
         # Оптимизация: не перезагружаем ту же самую анимацию
         if self.current_anim_path == path:
             if path.endswith(".svg") and self.svg_renderer:
                 # Обновляем интервал даже если путь тот же (для динамического FPS)
-                interval = 83
-                if self.current_state == "sleeping":
-                    interval = 250
-                elif self.current_state in ["overheat", "shaking"]:
-                    interval = 50
+                interval = int(1000 / self.current_fps)
                 self.anim_timer.start(interval)
             return
 
@@ -63,11 +70,7 @@ class AnimationManager:
         elif path.endswith(".svg"):
             self.svg_renderer = QSvgRenderer(path)
             # Динамический FPS в зависимости от состояния
-            interval = 83 # 12 FPS по умолчанию
-            if self.current_state == "sleeping":
-                interval = 250 # 4 FPS
-            elif self.current_state in ["overheat", "shaking"]:
-                interval = 50  # 20 FPS
+            interval = int(1000 / self.current_fps)
             self.anim_timer.start(interval)
         else:
             # Статическая картинка (скин)
@@ -169,6 +172,14 @@ class AnimationManager:
             return
 
         self.current_state = state
+
+        # Установка FPS на основе состояния
+        if state == "sleeping":
+            self.current_fps = 4
+        elif state in ["overheat", "shaking"]:
+            self.current_fps = 20
+        else:
+            self.current_fps = 12
 
         # Если выбран скин, пробуем загрузить его SVG версию
         if self.skin != "default":
