@@ -410,8 +410,12 @@ class InputManager(QObject):
         dy_pet = y - center_y
         dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
 
-        # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
-        if dist_sq_pet < 3600:
+        # Динамический радиус поглаживания на основе ширины окна (по умолчанию 60px при размере 100 -> коэффициент 0.6)
+        pet_radius = max(30, self.window.width() * 0.6)
+        pet_radius_sq = pet_radius * pet_radius
+
+        # Сравнение квадрата расстояния
+        if dist_sq_pet < pet_radius_sq:
             # Исключаем пассивный фарм (требуем активное поглаживание: активное движение мыши и кулдаун)
             if self.last_pet_time == 0:
                 self.last_pet_mouse_pos = (x, y)

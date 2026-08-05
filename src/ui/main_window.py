@@ -55,9 +55,10 @@ class PetWindow(QMainWindow):
         self.is_dragging = False
         self.shake_count = 0
         self.last_shake_time = 0
-        self.original_size = QSize(100, 100)
 
-        # Начальный размер
+        # Начальный размер на основе конфигурации
+        size_val = self.config.get("pet_size") if self.config else 100
+        self.original_size = QSize(size_val, size_val)
         self.resize(self.original_size)
 
         self.sound_manager = SoundManager(self.config)
@@ -90,6 +91,15 @@ class PetWindow(QMainWindow):
     def set_opacity(self, value):
         """Устанавливает прозрачность окна (0-100)"""
         self.setWindowOpacity(value / 100.0)
+
+    def set_pet_size(self, value):
+        """Устанавливает базовый размер питомца (50-250)"""
+        if self.config:
+            self.config.set("pet_size", value)
+        self.original_size = QSize(value, value)
+        if not self.is_dragging:
+            self.resize(self.original_size)
+            self.animation_manager.update_size(self.size())
 
     def set_always_on_top(self, enabled):
         """Включает или выключает режим 'Поверх всех окон' динамически"""

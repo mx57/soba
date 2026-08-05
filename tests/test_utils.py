@@ -268,6 +268,98 @@ class TestUtils(unittest.TestCase):
         # Test that play_sound on a non-existent sound returns gracefully and doesn't crash on None config
         sm.play_sound("non_existent_sound_123")
 
+    def test_sound_manager_custom_volume(self):
+        from src.utils.sound_manager import SoundManager
+        from PySide6.QtMultimedia import QSoundEffect
+
+        # Мокаем QSoundEffect, так как физических аудиоустройств может не быть в headless
+        original_source = QSoundEffect.setSource
+        original_volume = QSoundEffect.setVolume
+        original_play = QSoundEffect.play
+
+        QSoundEffect.setSource = MagicMock()
+        QSoundEffect.setVolume = MagicMock()
+        QSoundEffect.play = MagicMock()
+
+        try:
+            config = ConfigManager(self.config_path)
+            config.set("volume", 50)
+            sm = SoundManager(config)
+
+            # Имитируем звук
+            mock_effect = MagicMock()
+            sm.sounds["meow"] = mock_effect
+
+            # Проигрываем с дефолтной громкостью (50%)
+            sm.play_sound("meow")
+            mock_effect.setVolume.assert_called_with(0.5)
+
+            # Проигрываем с кастомной громкостью (85%)
+            sm.play_sound("meow", volume=85)
+            mock_effect.setVolume.assert_called_with(0.85)
+        finally:
+            QSoundEffect.setSource = original_source
+            QSoundEffect.setVolume = original_volume
+            QSoundEffect.play = original_play
+
+    def test_pet_size_modification_and_scaling(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        # По умолчанию размер 100
+        self.assertEqual(config.get("pet_size"), 100)
+
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 100)
+        self.assertEqual(window.width(), 100)
+
+        # Меняем размер на 150
+        window.set_pet_size(150)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.width(), 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+    def test_input_manager_petting_radius_scaling(self):
+        # Мокаем PetWindow и AnimationManager
+        mock_window = MagicMock()
+        mock_window.width.return_value = 200  # размер увеличен до 200
+        mock_window.height.return_value = 200
+
+        # Настраиваем mock для get_cached_pos
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        # Настраиваем mock для cursor().pos()
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        mock_window.animation_manager.current_state = "idle"
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Проверяем поглаживание.
+        # Центр питомца на 100+100=200, 100+100=200.
+        # Ширина 200 -> радиус 0.6 * 200 = 120px. Квадрат радиуса = 14400.
+        # Клик на (300, 300) дает расстояние sqrt(100^2 + 100^2) = ~141px (больше 120px) -> не гладим.
+        # Клик на (280, 280) дает расстояние sqrt(80^2 + 80^2) = ~113px (меньше 120px) -> гладим!
+
+        # Первая точка
+        im.handle_mouse(280, 280)
+        self.assertEqual(im.pending_stats["petting_count"], 0)
+
+        # Имитируем прохождение кулдауна и второе движение внутри нового увеличенного радиуса
+        im.last_pet_time -= 1.0
+        im.handle_mouse(220, 220)  # Мазок 60px (больше 30px)
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+
     def test_custom_skins_integration(self):
         # 1. Запись тестового SVG-файла
         from src.utils.bonding_utils import CAT_SKINS
@@ -360,6 +452,49 @@ class TestUtils(unittest.TestCase):
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
             QMessageBox.information = original_information
+
+    def test_settings_dialog_rejection_and_rollback(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.tray_menu import TrayMenu
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        config.set("volume", 70)
+        config.set("opacity", 100)
+        config.set("pet_size", 100)
+
+        window = PetWindow(config)
+        self.assertEqual(window.windowOpacity(), 1.0)
+        self.assertEqual(window.width(), 100)
+
+        # Мокаем dialog.exec() для возврата 0 (отмена/reject) и изменения настроек на лету
+        from src.ui.settings_dialog import SettingsDialog
+        original_exec = SettingsDialog.exec
+
+        def mock_exec_side_effect():
+            # Симулируем пользовательские изменения на лету (перемещение ползунков во время открытого диалога)
+            window.set_opacity(50)
+            window.set_pet_size(150)
+            return 0
+
+        SettingsDialog.exec = MagicMock(side_effect=mock_exec_side_effect)
+
+        try:
+            # Имитируем TrayMenu
+            tray = TrayMenu(window)
+
+            # Вызываем диалог настроек через трей
+            tray.show_settings()
+
+            # Ожидаем, что после отклонения диалога все оригинальные параметры восстановятся
+            self.assertEqual(config.get("volume"), 70)
+            self.assertEqual(config.get("opacity"), 100)
+            self.assertEqual(config.get("pet_size"), 100)
+            self.assertEqual(window.windowOpacity(), 1.0)
+            self.assertEqual(window.width(), 100)
+        finally:
+            SettingsDialog.exec = original_exec
 
 if __name__ == '__main__':
     unittest.main()

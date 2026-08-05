@@ -181,6 +181,11 @@ class TrayMenu(QObject):
                 self.window.input_manager.db.log_event("pomodoro_start", "Начата сессия отдыха")
 
     def show_settings(self, checked=False):
+        # Сохраняем исходные параметры на случай отмены диалога
+        orig_volume = self.window.config.get("volume")
+        orig_opacity = self.window.config.get("opacity")
+        orig_size = self.window.config.get("pet_size")
+
         dialog = SettingsDialog(self.window.config, self.window)
         if dialog.exec():
             # Обновляем скин и прозрачность в реальном времени
@@ -198,6 +203,13 @@ class TrayMenu(QObject):
                 self.window.timer_system.restart_stretch_timer()
             self.window.show_message("Настройки сохранены! 💾")
         else:
+            # Восстанавливаем оригинальные значения при отмене
+            self.window.config.set("volume", orig_volume)
+            self.window.config.set("opacity", orig_opacity)
+            self.window.config.set("pet_size", orig_size)
+            self.window.set_opacity(orig_opacity)
+            self.window.set_pet_size(orig_size)
+
             # Даже если диалог был отклонен, скин мог быть импортирован или удален мгновенно.
             # Поэтому мы в любом случае синхронизируем меню выбора окрасов в трее.
             self.update_skin_menu()
