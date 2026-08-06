@@ -11,6 +11,9 @@ class SoundManager:
         if sound_name not in self.sounds:
             path = f"assets/sounds/{sound_name}.wav"
             if not os.path.exists(path):
+                # Если звук отсутствует, пробуем использовать стандартное мяуканье 'meow' в качестве резерва
+                if sound_name != "meow":
+                    self.play_sound("meow", volume)
                 return
 
             effect = QSoundEffect()
