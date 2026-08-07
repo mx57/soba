@@ -35,10 +35,69 @@ class StatsDialog(QDialog):
         self.update_timer.timeout.connect(self.update_ui)
         self.update_timer.start(500) # Обновление каждые 500мс
 
+        # Горизонтальный макет для кнопок внизу
+        btn_layout = QHBoxLayout()
+
+        # Кнопка сброса прогресса
+        self.reset_btn = QPushButton("Сбросить прогресс")
+        self.reset_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
+        """)
+        self.reset_btn.clicked.connect(self.reset_progress)
+        btn_layout.addWidget(self.reset_btn)
+
+        btn_layout.addStretch()
+
         # Кнопка закрытия
         close_btn = QPushButton("Закрыть")
         close_btn.clicked.connect(self.accept)
-        main_layout.addWidget(close_btn)
+        btn_layout.addWidget(close_btn)
+
+        main_layout.addLayout(btn_layout)
+
+    def reset_progress(self):
+        from PySide6.QtWidgets import QMessageBox
+
+        reply = QMessageBox.question(
+            self,
+            "Сбросить прогресс",
+            "Вы уверены, что хотите сбросить весь прогресс, достижения и историю активности? Это действие необратимо.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            im = None
+            if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+                im = self.parent().input_manager
+
+            if im:
+                im.reset_all_data()
+            else:
+                self.db.reset_all_data()
+
+            # Мгновенно перерисовываем обе вкладки интерфейса в реальном времени
+            self.update_progress_ui()
+            self.update_history_ui()
+
+            QMessageBox.information(
+                self,
+                "Успех",
+                "Прогресс успешно сброшен!"
+            )
 
     def update_ui(self):
         self.update_progress_ui()

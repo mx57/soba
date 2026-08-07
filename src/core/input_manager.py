@@ -270,6 +270,34 @@ class InputManager(QObject):
 
         self.stats_cache["max_kps"] = self.max_kps
 
+    def reset_all_data(self):
+        """Полный сброс всех данных в БД и в памяти (runtime-счетчиков)."""
+        if not self.db:
+            return
+
+        # 1. Сбрасываем данные в БД
+        self.db.reset_all_data()
+
+        # 2. Обнуляем runtime-счетчики и аккумуляторы в оперативной памяти
+        self.last_affection_points = 0
+        self.pending_points = 0
+        self.pending_stats = {
+            "total_clicks": 0,
+            "work_seconds": 0,
+            "cursor_catches": 0,
+            "total_feedings": 0,
+            "pomodoros_completed": 0,
+            "petting_count": 0,
+            "shakes_count": 0
+        }
+        self.max_kps = 0
+        self.total_clicks_cache = 0
+        self.unlocked_achievements = []
+        self.stats_cache = self.db.get_all_stats() # Загружаем обновленные (сброшенные) значения из БД
+
+        self.points_time_accumulator = 0.0
+        self.work_time_accumulator = 0.0
+
     def add_shake(self):
         """Регистрирует встряхивание котика."""
         self.pending_stats["shakes_count"] += 1

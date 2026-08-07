@@ -412,5 +412,59 @@ class TestUtils(unittest.TestCase):
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
 
+    def test_data_store_reset_all_data(self):
+        db = DataStore(self.db_path)
+        db.add_affection_points(150)
+        db.set_stat("total_clicks", 500)
+        db.add_achievement("first_friend")
+        db.log_event("feeding", "Котик поел")
+
+        self.assertEqual(db.get_affection_points(), 150)
+        self.assertEqual(db.get_stat("total_clicks"), 500)
+        self.assertEqual(len(db.get_unlocked_achievements()), 1)
+
+        db.reset_all_data()
+
+        self.assertEqual(db.get_affection_points(), 0)
+        self.assertEqual(db.get_stat("total_clicks"), 0)
+        self.assertEqual(len(db.get_unlocked_achievements()), 0)
+
+        recent = db.get_recent_activity(10)
+        self.assertEqual(len(recent), 1)
+        self.assertEqual(recent[0][2], "reset_progress")
+
+        db.close()
+
+    def test_input_manager_reset_all_data(self):
+        mock_window = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Симулируем активность
+        im.last_affection_points = 50
+        im.pending_points = 10
+        im.pending_stats["total_clicks"] = 100
+        im.max_kps = 25
+        im.unlocked_achievements = ["first_friend"]
+        im.points_time_accumulator = 1.5
+        im.work_time_accumulator = 1.5
+
+        im.reset_all_data()
+
+        self.assertEqual(im.last_affection_points, 0)
+        self.assertEqual(im.pending_points, 0)
+        self.assertEqual(im.pending_stats["total_clicks"], 0)
+        self.assertEqual(im.max_kps, 0)
+        self.assertEqual(im.unlocked_achievements, [])
+        self.assertEqual(im.points_time_accumulator, 0.0)
+        self.assertEqual(im.work_time_accumulator, 0.0)
+        self.assertEqual(im.stats_cache.get("bonding_points", 0), 0)
+
+        db.close()
+
 if __name__ == '__main__':
     unittest.main()
