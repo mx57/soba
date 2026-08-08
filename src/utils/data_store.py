@@ -154,6 +154,23 @@ class DataStore:
         cursor.execute('SELECT id FROM achievements')
         return [row[0] for row in cursor.fetchall()]
 
+    def reset_all_data(self):
+        """Очищает историю активности, достижения и сбрасывает все статистики."""
+        if not self.conn:
+            self.init_db()
+        cursor = self.conn.cursor()
+        try:
+            # 1. Очищаем логи активности
+            cursor.execute('DELETE FROM activity_log')
+            # 2. Очищаем достижения
+            cursor.execute('DELETE FROM achievements')
+            # 3. Сбрасываем все значения статистик в 0
+            cursor.execute('UPDATE stats SET value = 0')
+            self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Error in reset_all_data: {e}")
+
     def close(self):
         """Закрывает соединение с базой данных."""
         if self.conn:

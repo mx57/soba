@@ -440,6 +440,46 @@ class InputManager(QObject):
             # Сброс начальной точки поглаживания при выходе за пределы питомца
             self.last_pet_time = 0
 
+    def reset_all_data(self):
+        """Очищает базу данных и сбрасывает все runtime-статистики и счетчики в памяти."""
+        if self.db:
+            # Сбрасываем в БД
+            self.db.reset_all_data()
+
+            # Обнуляем runtime аккумуляторы времени
+            self.points_time_accumulator = 0.0
+            self.work_time_accumulator = 0.0
+
+            # Обнуляем runtime счетчики и накопления
+            self.last_affection_points = 0
+            self.pending_points = 0
+            self.max_kps = 0
+            self.total_clicks_cache = 0
+            self.unlocked_achievements = []
+
+            # Сбрасываем pending_stats
+            for key in self.pending_stats:
+                self.pending_stats[key] = 0
+
+            # Сбрасываем stats_cache
+            self.stats_cache = self.db.get_all_stats()
+
+            # Сбрасываем KPS/клики в скользящем окне
+            self.key_timestamps = []
+            self.typing_count = 0
+
+            # Сбрасываем поглаживания и встряхивания
+            self.last_pet_time = 0
+            self.last_pet_mouse_pos = (0, 0)
+            self.window.shake_count = 0
+
+            # Сбрасываем форсированное состояние
+            self.forced_state_name = None
+            self.forced_state_expires = 0.0
+
+            # Возвращаем котика в idle
+            self.window.animation_manager.play_state("idle", force=True)
+
     def toggle_laser_mode(self):
         self.laser_mode = not self.laser_mode
         if self.laser_mode:
