@@ -361,6 +361,104 @@ class TestUtils(unittest.TestCase):
             QMessageBox.question = original_question
             QMessageBox.information = original_information
 
+    def test_datastore_reset(self):
+        db = DataStore(self.db_path)
+        # Наполняем тестовыми данными
+        db.log_event("test_event", "test_description")
+        db.increment_stat("test_stat", 10)
+        db.add_achievement("test_ach")
+
+        # Проверяем, что данные записались
+        self.assertEqual(len(db.get_recent_activity(5)), 1)
+        self.assertEqual(db.get_stat("test_stat"), 10)
+        self.assertIn("test_ach", db.get_unlocked_achievements())
+
+        # Выполняем сброс
+        db.reset_all_data()
+
+        # Проверяем чистоту
+        self.assertEqual(len(db.get_recent_activity(5)), 0)
+        self.assertEqual(db.get_stat("test_stat"), 0)
+        self.assertEqual(len(db.get_unlocked_achievements()), 0)
+        db.close()
+
+    def test_input_manager_reset(self):
+        mock_window = MagicMock()
+        mock_window.animation_manager.current_state = "eating"
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Симулируем активность
+        im.last_affection_points = 50
+        im.pending_points = 5
+        im.max_kps = 10
+        im.total_clicks_cache = 100
+        im.pending_stats["total_clicks"] = 20
+        im.unlocked_achievements = ["first_friend"]
+        im.forced_state_name = "eating"
+        im.forced_state_expires = time.time() + 10
+
+        # Сбрасываем все данные
+        im.reset_all_data()
+
+        # Проверяем, что в памяти всё обнулилось
+        self.assertEqual(im.last_affection_points, 0)
+        self.assertEqual(im.pending_points, 0)
+        self.assertEqual(im.max_kps, 0)
+        self.assertEqual(im.total_clicks_cache, 0)
+        self.assertEqual(im.pending_stats["total_clicks"], 0)
+        self.assertEqual(len(im.unlocked_achievements), 0)
+        self.assertIsNone(im.forced_state_name)
+        mock_window.animation_manager.play_state.assert_called_with("idle", force=True)
+
+        db.close()
+
+    def test_stats_dialog_reset_with_mock_msgbox(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
+        from src.ui.stats_dialog import StatsDialog
+        app = QApplication.instance() or QApplication([])
+
+        # Создаем реальный QWidget в качестве родителя, чтобы избежать ошибки типов в PySide
+        parent_widget = QWidget()
+        parent_widget.animation_manager = MagicMock()
+        parent_widget.animation_manager.current_state = "idle"
+
+        db = DataStore(self.db_path)
+        im = InputManager(parent_widget, db)
+        parent_widget.input_manager = im
+
+        # Симулируем данные
+        im.last_affection_points = 100
+        im.pending_points = 50
+        im.unlocked_achievements = ["first_friend"]
+
+        dialog = StatsDialog(db, parent=parent_widget)
+
+        # Мокаем QMessageBox для симуляции согласия пользователя на сброс
+        original_question = QMessageBox.question
+        original_information = QMessageBox.information
+        QMessageBox.question = MagicMock(return_value=QMessageBox.Yes)
+        QMessageBox.information = MagicMock()
+
+        try:
+            # Вызываем сброс через диалог
+            dialog.confirm_and_reset()
+
+            # Проверяем, что вызвался сброс у InputManager и обновился диалог
+            self.assertEqual(im.last_affection_points, 0)
+            self.assertEqual(im.pending_points, 0)
+            self.assertEqual(dialog.points_label.text(), "Всего: 0 ❤️")
+        finally:
+            QMessageBox.question = original_question
+            QMessageBox.information = original_information
+
+        db.close()
+
     def test_sound_manager_volume_override(self):
         from src.utils.sound_manager import SoundManager
         from PySide6.QtMultimedia import QSoundEffect
