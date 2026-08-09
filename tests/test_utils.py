@@ -412,5 +412,117 @@ class TestUtils(unittest.TestCase):
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
 
+    def test_sound_manager_fallback(self):
+        from src.utils.sound_manager import SoundManager
+        from PySide6.QtMultimedia import QSoundEffect
+
+        config = ConfigManager(self.config_path)
+        sm = SoundManager(config)
+
+        # Создаем фиктивный QSoundEffect для meow
+        mock_effect = MagicMock(spec=QSoundEffect)
+        sm.sounds["meow"] = mock_effect
+
+        # Проигрываем несуществующий "happy"
+        # Ожидаем, что сработает резервный meow
+        sm.play_sound("happy")
+        mock_effect.play.assert_called()
+
+    def test_data_store_reset_logic(self):
+        db = DataStore(self.db_path)
+        db.log_event("test_event", "test_description")
+        db.add_achievement("test_ach")
+        db.increment_stat("total_clicks", 100)
+
+        # Сбрасываем все данные
+        db.reset_all_data()
+
+        # Проверяем, что логи и ачивки удалены, а статы сброшены в 0
+        self.assertEqual(db.get_stat("total_clicks"), 0)
+        self.assertEqual(len(db.get_unlocked_achievements()), 0)
+
+        # Должен остаться только один лог события сброса
+        recent = db.get_recent_activity()
+        self.assertEqual(len(recent), 1)
+        self.assertEqual(recent[0][2], "stats_reset")
+
+        db.close()
+
+    def test_input_manager_reset_logic(self):
+        mock_window = MagicMock()
+        mock_window.animation_manager.current_state = "eating"
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Накапливаем данные в памяти
+        im.last_affection_points = 50
+        im.pending_points = 10
+        im.pending_stats["total_clicks"] = 5
+        im.unlocked_achievements = ["first_friend"]
+        im.points_time_accumulator = 1.5
+        im.work_time_accumulator = 1.0
+
+        # Сбрасываем через менеджер
+        im.reset_all_data()
+
+        # Проверяем сброс в памяти
+        self.assertEqual(im.last_affection_points, 0)
+        self.assertEqual(im.pending_points, 0)
+        self.assertEqual(im.pending_stats["total_clicks"], 0)
+        self.assertEqual(len(im.unlocked_achievements), 0)
+        self.assertEqual(im.points_time_accumulator, 0.0)
+        self.assertEqual(im.work_time_accumulator, 0.0)
+
+        # Проверяем сброс в БД
+        self.assertEqual(db.get_affection_points(), 0)
+
+        db.close()
+
+    def test_stats_dialog_reset_ui_flow(self):
+        from src.ui.stats_dialog import StatsDialog
+        from PySide6.QtWidgets import QMessageBox, QApplication, QWidget
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        app = QApplication.instance() or QApplication([])
+
+        # Создаем реальный QWidget в качестве родителя, чтобы избежать ошибки типов в PySide
+        parent_widget = QWidget()
+        parent_widget.animation_manager = MagicMock()
+        parent_widget.animation_manager.current_state = "idle"
+
+        db = DataStore(self.db_path)
+        im = InputManager(parent_widget, db)
+        parent_widget.input_manager = im
+
+        # Симулируем данные
+        im.last_affection_points = 100
+        im.pending_points = 50
+        im.unlocked_achievements = ["first_friend"]
+
+        dialog = StatsDialog(db, parent=parent_widget)
+
+        # Мокаем QMessageBox для симуляции согласия пользователя на сброс
+        original_question = QMessageBox.question
+        original_information = QMessageBox.information
+        QMessageBox.question = MagicMock(return_value=QMessageBox.Yes)
+        QMessageBox.information = MagicMock()
+
+        try:
+            # Вызываем сброс через диалог
+            dialog.confirm_and_reset()
+
+            # Проверяем, что вызвался сброс у InputManager и обновился диалог
+            self.assertEqual(im.last_affection_points, 0)
+            self.assertEqual(im.pending_points, 0)
+            self.assertEqual(dialog.points_label.text(), "Всего: 0 ❤️")
+        finally:
+            QMessageBox.question = original_question
+            QMessageBox.information = original_information
+            db.close()
+
 if __name__ == '__main__':
     unittest.main()
