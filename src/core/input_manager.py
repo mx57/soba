@@ -471,3 +471,39 @@ class InputManager(QObject):
             self.window.setCursor(Qt.ArrowCursor)
             self.window.animation_manager.play_state("idle")
         return self.laser_mode
+
+    def reset_all_data(self):
+        """Очищает базу данных и безопасно сбрасывает все внутриигровые показатели, кэши и аккумуляторы в памяти."""
+        if not self.db:
+            return
+
+        # 1. Сбрасываем базу данных
+        self.db.reset_all_data()
+
+        # 2. Сбрасываем все показатели в памяти
+        self.last_affection_points = 0
+        self.pending_points = 0
+        self.pending_stats = {
+            "total_clicks": 0,
+            "work_seconds": 0,
+            "cursor_catches": 0,
+            "total_feedings": 0,
+            "pomodoros_completed": 0,
+            "petting_count": 0,
+            "shakes_count": 0
+        }
+        self.max_kps = 0
+        self.total_clicks_cache = 0
+        self.unlocked_achievements = []
+        self.stats_cache = {
+            "bonding_points": 0,
+            "total_clicks": 0,
+            "total_feedings": 0,
+            "work_seconds": 0,
+            "max_kps": 0,
+            "pomodoros_completed": 0,
+            "petting_count": 0,
+            "shakes_count": 0
+        }
+        self.points_time_accumulator = 0.0
+        self.work_time_accumulator = 0.0

@@ -35,15 +35,63 @@ class StatsDialog(QDialog):
         self.update_timer.timeout.connect(self.update_ui)
         self.update_timer.start(500) # Обновление каждые 500мс
 
-        # Кнопка закрытия
+        # Кнопки управления
+        btn_layout = QHBoxLayout()
+
+        self.reset_btn = QPushButton("Сбросить прогресс")
+        self.reset_btn.setStyleSheet("color: #d9534f; font-weight: bold;")
+        self.reset_btn.clicked.connect(self.confirm_reset)
+        btn_layout.addWidget(self.reset_btn)
+
+        btn_layout.addStretch()
+
         close_btn = QPushButton("Закрыть")
         close_btn.clicked.connect(self.accept)
-        main_layout.addWidget(close_btn)
+        btn_layout.addWidget(close_btn)
+
+        main_layout.addLayout(btn_layout)
 
     def update_ui(self):
         self.update_progress_ui()
         if self.tabs.currentIndex() == 1:
             self.update_history_ui()
+
+    def confirm_reset(self):
+        from PySide6.QtWidgets import QMessageBox
+
+        reply = QMessageBox.question(
+            self,
+            "Сбросить прогресс",
+            "Вы уверены, что хотите полностью сбросить весь прогресс, достижения и историю активности? Это действие необратимо.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+
+        # Находим и сбрасываем менеджер ввода, если он доступен
+        im = None
+        if self.parent() and hasattr(self.parent(), 'input_manager') and self.parent().input_manager:
+            im = self.parent().input_manager
+
+        if im:
+            im.reset_all_data()
+        else:
+            self.db.reset_all_data()
+
+        # Очищаем кэш истории
+        self.last_events_cache = []
+
+        # Мгновенно перерисовываем обе вкладки диалога
+        self.update_progress_ui()
+        self.update_history_ui()
+
+        QMessageBox.information(
+            self,
+            "Сброс выполнен",
+            "Весь игровой прогресс и статистика успешно сброшены.",
+            QMessageBox.Ok
+        )
 
     def setup_progress_tab(self, widget):
         layout = QVBoxLayout(widget)
