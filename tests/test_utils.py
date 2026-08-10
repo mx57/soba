@@ -516,5 +516,85 @@ class TestUtils(unittest.TestCase):
             QMessageBox.information = original_information
             db.close()
 
+    def test_show_notification(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        window = PetWindow(config)
+
+        import plyer
+        original_notify = plyer.notification.notify
+        plyer.notification.notify = MagicMock()
+
+        try:
+            # 1. С включенными уведомлениями
+            config.set("desktop_notifications", True)
+            window.show_notification("Тест Заголовок", "Тест Сообщение", use_desktop=True)
+
+            icon_path = os.path.abspath("assets/icons/tray_icon.png")
+            if not os.path.exists(icon_path):
+                icon_path = None
+
+            plyer.notification.notify.assert_called_with(
+                title="Тест Заголовок",
+                message="Тест Сообщение",
+                app_name="Desktop Pet Cat",
+                app_icon=icon_path,
+                timeout=5
+            )
+
+            # Сбрасываем мок
+            plyer.notification.notify.reset_mock()
+
+            # 2. С выключенными уведомлениями в конфиге
+            config.set("desktop_notifications", False)
+            window.show_notification("Тест Заголовок", "Тест Сообщение", use_desktop=True)
+            plyer.notification.notify.assert_not_called()
+
+            # 3. С use_desktop=False
+            config.set("desktop_notifications", True)
+            window.show_notification("Тест Заголовок", "Тест Сообщение", use_desktop=False)
+            plyer.notification.notify.assert_not_called()
+        finally:
+            plyer.notification.notify = original_notify
+
+    def test_mouse_press_stops_pos_animation(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtGui import QMouseEvent, QPointingDevice
+        from PySide6.QtCore import QEvent, QPointF, QPropertyAnimation
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        window = PetWindow(config)
+
+        # Симулируем запуск анимации перемещения
+        window.pos_animation.setDuration(100)
+        window.pos_animation.setStartValue(QPoint(0, 0))
+        window.pos_animation.setEndValue(QPoint(100, 100))
+        window.pos_animation.start()
+
+        self.assertEqual(window.pos_animation.state(), QPropertyAnimation.Running)
+
+        # Создаем событие нажатия мыши
+        device = QPointingDevice.primaryPointingDevice()
+        event = QMouseEvent(
+            QEvent.MouseButtonPress,
+            QPointF(50, 50),
+            QPointF(50, 50),
+            Qt.LeftButton,
+            Qt.LeftButton,
+            Qt.NoModifier,
+            device
+        )
+
+        # Вызываем событие нажатия
+        window.mousePressEvent(event)
+
+        # Проверяем, что анимация была остановлена
+        self.assertEqual(window.pos_animation.state(), QPropertyAnimation.Stopped)
+
 if __name__ == '__main__':
     unittest.main()
