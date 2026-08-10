@@ -215,9 +215,32 @@ class PetWindow(QMainWindow):
         self.message_hide_timer.stop()
         self.message_hide_timer.start(duration)
 
+    def show_notification(self, title, message, use_desktop=True):
+        """Отображает сообщение над котиком и отправляет системное уведомление."""
+        display_text = f"{title}: {message}" if title else message
+        self.show_message(display_text)
+
+        if use_desktop and self.config and self.config.get("desktop_notifications"):
+            try:
+                import os
+                from plyer import notification
+                icon_path = os.path.abspath("assets/icons/tray_icon.png")
+                if not os.path.exists(icon_path):
+                    icon_path = None
+                notification.notify(
+                    title=title or "Десктопный Котик",
+                    message=message,
+                    app_name="Desktop Pet Cat",
+                    app_icon=icon_path,
+                    timeout=5
+                )
+            except Exception as e:
+                print(f"Error showing desktop notification: {e}")
+
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
+            self.pos_animation.stop()
             self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             self.is_dragging = True
             self.last_state_before_drag = self.animation_manager.current_state

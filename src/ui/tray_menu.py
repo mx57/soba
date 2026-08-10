@@ -169,14 +169,14 @@ class TrayMenu(QObject):
     def start_work_timer(self, checked=False):
         if self.window.timer_system:
             self.window.timer_system.start_pomodoro("work")
-            self.window.show_message("Пора работать! 🛠")
+            self.window.show_notification("Таймер запущен", "Пора работать! 🛠")
             if self.window.input_manager and self.window.input_manager.db:
                 self.window.input_manager.db.log_event("pomodoro_start", "Начата сессия работы")
 
     def start_break_timer(self, checked=False):
         if self.window.timer_system:
             self.window.timer_system.start_pomodoro("break")
-            self.window.show_message("Отдыхаем! ☕")
+            self.window.show_notification("Таймер запущен", "Отдыхаем! ☕")
             if self.window.input_manager and self.window.input_manager.db:
                 self.window.input_manager.db.log_event("pomodoro_start", "Начата сессия отдыха")
 

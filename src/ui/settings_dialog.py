@@ -21,6 +21,11 @@ class SettingsDialog(QDialog):
         self.always_on_top_check.setChecked(self.config.get("always_on_top"))
         layout.addWidget(self.always_on_top_check)
 
+        # Системные уведомления
+        self.desktop_notifications_check = QCheckBox("Системные уведомления")
+        self.desktop_notifications_check.setChecked(self.config.get("desktop_notifications"))
+        layout.addWidget(self.desktop_notifications_check)
+
         # Громкость
         volume_header_layout = QHBoxLayout()
         volume_header_layout.addWidget(QLabel("Громкость звука:"))
@@ -166,6 +171,7 @@ class SettingsDialog(QDialog):
     def save_settings(self):
         self.config.set("username", self.name_edit.text())
         self.config.set("always_on_top", self.always_on_top_check.isChecked())
+        self.config.set("desktop_notifications", self.desktop_notifications_check.isChecked())
         self.config.set("volume", self.volume_slider.value())
         self.config.set("opacity", self.opacity_slider.value())
         self.config.set("stretch_interval", self.stretch_spin.value())

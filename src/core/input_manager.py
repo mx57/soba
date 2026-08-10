@@ -309,7 +309,7 @@ class InputManager(QObject):
                     self.unlocked_achievements.append(ach_id)
                     self.db.add_achievement(ach_id)
                     ach = ACHIEVEMENTS[ach_id]
-                    self.window.show_message(f"Достижение: {ach['icon']} {ach['title']}", duration=5000)
+                    self.window.show_notification("Достижение разблокировано! 🏆", f"{ach['icon']} {ach['title']} — {ach['desc']}")
                     self.window.sound_manager.play_sound("happy")
                     self.db.log_event("achievement", f"Разблокировано: {ach['title']}")
 
