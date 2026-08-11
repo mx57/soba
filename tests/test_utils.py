@@ -361,6 +361,51 @@ class TestUtils(unittest.TestCase):
             QMessageBox.question = original_question
             QMessageBox.information = original_information
 
+    def test_pet_size_and_petting_radius_scaling(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Проверяем дефолтное значение pet_size
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Инициализация PetWindow и проверка original_size
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 100)
+        self.assertEqual(window.original_size.height(), 100)
+
+        # 3. Изменение pet_size через set_pet_size
+        window.set_pet_size(150)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.original_size.height(), 150)
+        self.assertEqual(window.width(), 150)
+        self.assertEqual(window.height(), 150)
+
+        # 4. Проверка радиуса поглаживания в InputManager при 150px
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+
+        # Центр котика при 150x150
+        pet_pos = window.get_cached_pos()
+        center_x = pet_pos.x() + 75
+        center_y = pet_pos.y() + 75
+
+        # pet_radius = max(150, 150) * 0.6 = 90px
+        # pet_radius_sq = 8100
+        # Проверяем точку внутри радиуса (например, на расстоянии 80px)
+        # dx_pet = 80, dy_pet = 0 -> dist_sq_pet = 6400 < 8100 (должно реагировать на поглаживание)
+        im.handle_mouse(center_x + 80, center_y)
+        self.assertNotEqual(im.last_pet_time, 0)
+
+        # Сбрасываем и проверяем точку вне радиуса (например, на расстоянии 100px)
+        im.last_pet_time = 0
+        im.handle_mouse(center_x + 100, center_y)
+        self.assertEqual(im.last_pet_time, 0)
+
+        db.close()
+
     def test_sound_manager_volume_override(self):
         from src.utils.sound_manager import SoundManager
         from PySide6.QtMultimedia import QSoundEffect
