@@ -186,6 +186,8 @@ class TrayMenu(QObject):
             # Обновляем скин и прозрачность в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            # Обновляем размер питомца в реальном времени
+            self.window.update_pet_size(self.window.config.get("pet_size"))
             # Обновляем меню скинов
             self.update_skin_menu()
             # Обновляем режим "Поверх всех окон" в реальном времени
