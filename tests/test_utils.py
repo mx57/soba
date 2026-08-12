@@ -516,5 +516,57 @@ class TestUtils(unittest.TestCase):
             QMessageBox.information = original_information
             db.close()
 
+    def test_pet_size_config_default(self):
+        config = ConfigManager(self.config_path)
+        self.assertEqual(config.get("pet_size"), 100)
+        config.set("pet_size", 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+    def test_pet_window_size_initialization_and_update(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        config.set("pet_size", 120)
+
+        window = PetWindow(config)
+        self.assertEqual(window.width(), 120)
+        self.assertEqual(window.height(), 120)
+
+        window.update_pet_size(180)
+        self.assertEqual(window.width(), 180)
+        self.assertEqual(window.height(), 180)
+
+    def test_dynamic_petting_radius_scaling(self):
+        # Мокаем PetWindow с разной шириной
+        mock_window = MagicMock()
+        mock_window.width.return_value = 150 # pet_size = 150
+        mock_window.height.return_value = 150
+
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        mock_window.animation_manager.current_state = "idle"
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Центр котика на (100 + 75, 100 + 75) = (175, 175).
+        # Радиус поглаживания = 150 * 0.6 = 90px.
+        # Попробуем погладить на расстоянии 80px (внутри радиуса)
+        im.handle_mouse(175, 175) # Начальная точка
+        im.last_pet_time -= 1.0 # Проматываем время назад
+        im.handle_mouse(231, 231) # Движение на 56px (все еще внутри радиуса 90px)
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+
 if __name__ == '__main__':
     unittest.main()

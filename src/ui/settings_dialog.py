@@ -52,6 +52,13 @@ class SettingsDialog(QDialog):
         self.opacity_slider.valueChanged.connect(lambda v: self.opacity_val_label.setText(f"{v}%"))
         layout.addWidget(self.opacity_slider)
 
+        # Размер котика
+        layout.addWidget(QLabel("Размер котика (px):"))
+        self.pet_size_spin = QSpinBox()
+        self.pet_size_spin.setRange(50, 250)
+        self.pet_size_spin.setValue(self.config.get("pet_size"))
+        layout.addWidget(self.pet_size_spin)
+
         # Интервал растяжки
         layout.addWidget(QLabel("Интервал растяжки (мин):"))
         self.stretch_spin = QSpinBox()
@@ -168,6 +175,7 @@ class SettingsDialog(QDialog):
         self.config.set("always_on_top", self.always_on_top_check.isChecked())
         self.config.set("volume", self.volume_slider.value())
         self.config.set("opacity", self.opacity_slider.value())
+        self.config.set("pet_size", self.pet_size_spin.value())
         self.config.set("stretch_interval", self.stretch_spin.value())
         self.config.set("pomodoro_work", self.pomodoro_work_spin.value())
         self.config.set("pomodoro_break", self.pomodoro_break_spin.value())
