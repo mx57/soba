@@ -131,28 +131,31 @@ class AnimationManager:
             angle = 5 * math.sin(self.frame_counter * 0.8)
             painter.rotate(angle)
         elif self.current_state == "happy":
-            # Прыжки
-            painter.translate(0, -abs(15 * math.sin(self.frame_counter * 0.5)))
+            # Прыжки, пропорциональные высоте окна
+            jump_offset = -abs(15 * (size.height() / 100.0) * math.sin(self.frame_counter * 0.5))
+            painter.translate(0, jump_offset)
         elif self.current_state == "sleeping":
             # Глубокое медленное дыхание + наклон
             scale = 1.0 + 0.05 * math.sin(self.frame_counter * 0.1)
             painter.scale(scale, scale)
             painter.rotate(5)
         elif self.current_state == "hunting":
-            # Приседание перед прыжком + тряска
+            # Приседание перед прыжком + тряска, пропорциональная размеру
             painter.scale(1.1, 0.9)
-            painter.translate(random.randint(-2, 2), 0)
+            shake_val = max(1, int(2 * (size.width() / 100.0)))
+            painter.translate(random.randint(-shake_val, shake_val), 0)
         elif self.current_state == "overheat":
-            # Бешеная тряска + увеличение
+            # Бешеная тряска + увеличение, пропорциональная размеру
             painter.scale(1.2, 1.2)
-            painter.translate(random.randint(-4, 4), random.randint(-4, 4))
+            shake_val = max(1, int(4 * (size.width() / 100.0)))
+            painter.translate(random.randint(-shake_val, shake_val), random.randint(-shake_val, shake_val))
         elif self.current_state == "stretching":
             # Растягивание
             painter.scale(0.8, 1.4)
         elif self.current_state == "eating":
-            # Наклоны головы вперед-назад при еде
+            # Наклоны головы вперед-назад при еде, пропорциональные высоте окна
             scale_y = 1.0 + 0.1 * abs(math.sin(self.frame_counter * 0.8))
-            painter.translate(0, 10 * (scale_y - 1.0))
+            painter.translate(0, 10 * (size.height() / 100.0) * (scale_y - 1.0))
             painter.scale(1.0, scale_y)
         elif self.current_state == "thinking":
             # Наклон + покачивание

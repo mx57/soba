@@ -186,6 +186,8 @@ class TrayMenu(QObject):
             # Обновляем скин и прозрачность в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            # Обновляем размер питомца в реальном времени
+            self.window.set_pet_size(self.window.config.get("pet_size"))
             # Обновляем меню скинов
             self.update_skin_menu()
             # Обновляем режим "Поверх всех окон" в реальном времени
@@ -203,6 +205,8 @@ class TrayMenu(QObject):
             self.update_skin_menu()
             # Также обновляем отображаемый скин (если удалили текущий активный, он мог сброситься на default)
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
+            # Также обновляем размер
+            self.window.set_pet_size(self.window.config.get("pet_size"))
 
     def show_stats(self, checked=False):
         if self.window.input_manager and self.window.input_manager.db:

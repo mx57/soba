@@ -516,5 +516,47 @@ class TestUtils(unittest.TestCase):
             QMessageBox.information = original_information
             db.close()
 
+    def test_pet_size_configuration_and_scaling(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        # 1. Проверяем значение по умолчанию в ConfigManager
+        config = ConfigManager(self.config_path)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # Изменяем размер
+        config.set("pet_size", 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        # 2. Инициализация PetWindow с новым размером
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.original_size.height(), 150)
+
+        # 3. Динамическое изменение через set_pet_size
+        window.set_pet_size(200)
+        self.assertEqual(window.original_size.width(), 200)
+        self.assertEqual(window.size().width(), 200)
+
+        # 4. Проверка масштабирования поглаживания в InputManager
+        # При размере 200 радиус равен 0.6 * 200 = 120px. Радиус в квадрате = 14400.
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+
+        # Настраиваем mock для get_cached_pos
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        window.get_cached_pos = MagicMock(return_value=mock_pos)
+
+        # Движение в пределах 120px (например, на расстоянии 80px от центра)
+        # центр на (200, 200)
+        im.handle_mouse(280, 200) # dx=80, dy=0 => dist_sq=6400 < 14400
+        # Ожидаем, что точка поглаживания установлена
+        self.assertTrue(im.last_pet_time > 0)
+
+        db.close()
+
 if __name__ == '__main__':
     unittest.main()
