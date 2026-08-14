@@ -131,8 +131,9 @@ class AnimationManager:
             angle = 5 * math.sin(self.frame_counter * 0.8)
             painter.rotate(angle)
         elif self.current_state == "happy":
-            # Прыжки
-            painter.translate(0, -abs(15 * math.sin(self.frame_counter * 0.5)))
+            # Прыжки, масштабируемые с высотой окна
+            jump_height = size.height() * 0.15
+            painter.translate(0, -abs(jump_height * math.sin(self.frame_counter * 0.5)))
         elif self.current_state == "sleeping":
             # Глубокое медленное дыхание + наклон
             scale = 1.0 + 0.05 * math.sin(self.frame_counter * 0.1)
@@ -150,13 +151,26 @@ class AnimationManager:
             # Растягивание
             painter.scale(0.8, 1.4)
         elif self.current_state == "eating":
-            # Наклоны головы вперед-назад при еде
+            # Наклоны головы вперед-назад при еде, масштабируемые с высотой окна
             scale_y = 1.0 + 0.1 * abs(math.sin(self.frame_counter * 0.8))
-            painter.translate(0, 10 * (scale_y - 1.0))
+            eat_translation = size.height() * 0.1 * (scale_y - 1.0)
+            painter.translate(0, eat_translation)
             painter.scale(1.0, scale_y)
         elif self.current_state == "thinking":
             # Наклон + покачивание
             painter.rotate(10 + 5 * math.sin(self.frame_counter * 0.2))
+        elif self.current_state == "playing":
+            # Игривое покачивание и подпрыгивание, масштабируемые с высотой окна
+            angle = 10 * math.sin(self.frame_counter * 0.5)
+            bounce_y = -abs(size.height() * 0.08 * math.sin(self.frame_counter * 0.5))
+            painter.rotate(angle)
+            painter.translate(0, bounce_y)
+        elif self.current_state == "shaking":
+            # Сильная тряска в стороны (встряхивание), масштабируемая с шириной окна
+            shake_amp = size.width() * 0.05
+            painter.translate(random.uniform(-shake_amp, shake_amp), random.uniform(-shake_amp, shake_amp))
+            # Слегка сплющиваем и растягиваем для комичного эффекта
+            painter.scale(1.0 + 0.05 * math.sin(self.frame_counter * 1.5), 1.0 - 0.05 * math.sin(self.frame_counter * 1.5))
 
         painter.translate(-size.width() / 2, -size.height() / 2)
 
