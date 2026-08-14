@@ -516,5 +516,70 @@ class TestUtils(unittest.TestCase):
             QMessageBox.information = original_information
             db.close()
 
+    def test_pet_size_default_and_change(self):
+        config = ConfigManager(self.config_path)
+        # Проверяем дефолтный размер (100)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 100)
+        self.assertEqual(window.original_size.height(), 100)
+
+        # Меняем размер и проверяем обновление
+        window.set_pet_size(150)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.original_size.height(), 150)
+        self.assertEqual(window.size().width(), 150)
+        self.assertEqual(window.size().height(), 150)
+
+    def test_petting_radius_proportionate_scaling(self):
+        mock_window = MagicMock()
+        mock_window.width.return_value = 200  # размер увеличен до 200
+        mock_window.height.return_value = 200
+
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Центр котика на (200, 200)
+        # Радиус поглаживания равен 200 * 0.6 = 120px
+        # Расстояние в 80px: (120, 260) -> dx = -80, dy = 60, dist_sq = 6400 + 3600 = 10000
+        # 10000 < 14400, поэтому попадает! Но 10000 > 3600 (порог 60px), так что при старой логике промазал бы!
+        im.handle_mouse(120, 260)
+        self.assertEqual(im.last_pet_time, im.last_input_time) # точка установлена, т.е. попали!
+
+        db.close()
+
+    def test_playing_and_shaking_procedural_animations(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from src.core.animation_manager import AnimationManager
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Проверим, что при вызове play_state для playing и shaking устанавливается правильный FPS
+        am.play_state("playing")
+        self.assertEqual(am.current_state, "playing")
+        self.assertEqual(am.current_fps, 12)
+
+        am.play_state("shaking")
+        self.assertEqual(am.current_state, "shaking")
+        self.assertEqual(am.current_fps, 20)
+
 if __name__ == '__main__':
     unittest.main()
