@@ -55,7 +55,8 @@ class PetWindow(QMainWindow):
         self.is_dragging = False
         self.shake_count = 0
         self.last_shake_time = 0
-        self.original_size = QSize(100, 100)
+        pet_size = self.config.get("pet_size") if self.config else 100
+        self.original_size = QSize(pet_size, pet_size)
 
         # Начальный размер
         self.resize(self.original_size)
@@ -86,6 +87,12 @@ class PetWindow(QMainWindow):
 
     def get_cached_pos(self):
         return self._cached_pos
+
+    def set_pet_size(self, size):
+        """Устанавливает базовый размер питомца и масштабирует окно/анимацию"""
+        self.original_size = QSize(size, size)
+        self.resize(self.original_size)
+        self.animation_manager.update_size(self.size())
 
     def set_opacity(self, value):
         """Устанавливает прозрачность окна (0-100)"""

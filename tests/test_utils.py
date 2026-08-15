@@ -62,10 +62,28 @@ class TestUtils(unittest.TestCase):
         config = ConfigManager(self.config_path)
         config.set("username", "TestUser")
         self.assertEqual(config.get("username"), "TestUser")
+        self.assertEqual(config.get("pet_size"), 100)
 
         with open(self.config_path, 'r') as f:
             data = json.load(f)
             self.assertEqual(data["username"], "TestUser")
+
+    def test_pet_size_integration(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        config.set("pet_size", 150)
+
+        window = PetWindow(config)
+        self.assertEqual(window.width(), 150)
+        self.assertEqual(window.height(), 150)
+
+        # Изменяем размер котика
+        window.set_pet_size(200)
+        self.assertEqual(window.width(), 200)
+        self.assertEqual(window.height(), 200)
 
     def test_data_store(self):
         db = DataStore(self.db_path)
