@@ -412,6 +412,44 @@ class TestUtils(unittest.TestCase):
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
 
+    def test_animation_manager_playing_and_shaking_frames(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from src.core.animation_manager import AnimationManager
+        from src.utils.paths import ANIMATIONS_DIR
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        label.resize(100, 100)
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Используем тестовый SVG
+        test_svg_dir = os.path.join(ANIMATIONS_DIR, "svg_skins")
+        os.makedirs(test_svg_dir, exist_ok=True)
+        test_svg_path = os.path.join(test_svg_dir, "cat_custom_anim_test.svg")
+        with open(test_svg_path, "w", encoding="utf-8") as f:
+            f.write("<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100'/></svg>")
+
+        try:
+            am.set_animation(test_svg_path)
+
+            # Проверяем состояние 'playing'
+            am.play_state("playing")
+            am.update_frame()
+            self.assertEqual(am.current_state, "playing")
+            self.assertIsNotNone(label.pixmap())
+
+            # Проверяем состояние 'shaking'
+            am.play_state("shaking")
+            am.update_frame()
+            self.assertEqual(am.current_state, "shaking")
+            self.assertEqual(am.current_fps, 20)
+            self.assertIsNotNone(label.pixmap())
+        finally:
+            if os.path.exists(test_svg_path):
+                os.remove(test_svg_path)
+
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
         from PySide6.QtMultimedia import QSoundEffect
