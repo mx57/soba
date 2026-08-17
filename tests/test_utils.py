@@ -29,6 +29,68 @@ class TestUtils(unittest.TestCase):
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
 
+    def test_pet_size_logic(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Дефолтный pet_size
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Инициализация PetWindow
+        window = PetWindow(config)
+        self.assertEqual(window.width(), 100)
+        self.assertEqual(window.height(), 100)
+
+        # 3. Изменение pet_size
+        window.set_pet_size(150)
+        self.assertEqual(window.width(), 150)
+        self.assertEqual(window.height(), 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        # 4. Проверка SettingsDialog
+        from src.ui.settings_dialog import SettingsDialog
+        dialog = SettingsDialog(config)
+        self.assertEqual(dialog.size_slider.value(), 150)
+        dialog.size_slider.setValue(200)
+        dialog.save_settings()
+        self.assertEqual(config.get("pet_size"), 200)
+
+    def test_input_manager_dynamic_petting_radius(self):
+        mock_window = MagicMock()
+        mock_window.width.return_value = 200
+        mock_window.height.return_value = 200
+
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        mock_window.animation_manager.current_state = "idle"
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # При окне 200x200 и верхнем левом угле (100, 100), центр находится в точке (200, 200).
+        # Порог радиуса поглаживания = 200 * 0.6 = 120px.
+        # Точка (280, 200) находится на расстоянии 80px от центра (< 120px), т.е. внутри области.
+        im.handle_mouse(280, 200) # точка 1 внутри котика (устанавливает last_pet_mouse_pos и last_pet_time)
+        self.assertEqual(im.pending_stats["petting_count"], 0)
+
+        im.last_pet_time -= 1.0 # сдвигаем время для удовлетворения кулдауна 500мс
+        # Точка (230, 200) также находится внутри котика (расстояние 30px от центра < 120px)
+        # Смещение от точки 1 (280 -> 230) равно 50px (> 30px порога мазка)
+        im.handle_mouse(230, 200)
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+
     def test_always_on_top_logic(self):
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         from PySide6.QtWidgets import QApplication
