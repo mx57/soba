@@ -183,9 +183,10 @@ class TrayMenu(QObject):
     def show_settings(self, checked=False):
         dialog = SettingsDialog(self.window.config, self.window)
         if dialog.exec():
-            # Обновляем скин и прозрачность в реальном времени
+            # Обновляем скин, прозрачность и размер в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            self.window.set_pet_size(self.window.config.get("pet_size"))
             # Обновляем меню скинов
             self.update_skin_menu()
             # Обновляем режим "Поверх всех окон" в реальном времени
@@ -198,10 +199,9 @@ class TrayMenu(QObject):
                 self.window.timer_system.restart_stretch_timer()
             self.window.show_message("Настройки сохранены! 💾")
         else:
-            # Даже если диалог был отклонен, скин мог быть импортирован или удален мгновенно.
-            # Поэтому мы в любом случае синхронизируем меню выбора окрасов в трее.
+            # Если диалог был отменен, восстанавливаем размер питомца и скин из конфига
+            self.window.set_pet_size(self.window.config.get("pet_size"))
             self.update_skin_menu()
-            # Также обновляем отображаемый скин (если удалили текущий активный, он мог сброситься на default)
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
 
     def show_stats(self, checked=False):
