@@ -481,6 +481,84 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_pet_size_config_and_window_resize(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        config.set("pet_size", 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.original_size.height(), 150)
+
+        # Динамическая смена размера
+        window.set_pet_size(180)
+        self.assertEqual(window.original_size.width(), 180)
+        self.assertEqual(config.get("pet_size"), 180)
+
+    def test_petting_radius_scaled_by_pet_size(self):
+        mock_window = MagicMock()
+        mock_window.original_size.width.return_value = 150
+        mock_window.width.return_value = 150
+        mock_window.height.return_value = 150
+
+        # Позиция центра на (150, 150)
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 75
+        mock_pos.y.return_value = 75
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(75, 75)
+        mock_window.cursor.return_value = mock_cursor
+
+        mock_window.animation_manager.current_state = "idle"
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Радиус для 150px составляет 150 * 0.6 = 90px (порог 8100)
+        # Мышь на 150, 150 (расстояние от центра 75,75 до 150,150 = sqrt(75^2 + 75^2) = sqrt(11250) > 8100 -> вне радиуса)
+        # Мышь на 120, 120 (расстояние 45, 45 -> 45^2 + 45^2 = 4050 < 8100 -> внутри радиуса)
+
+        # 1. Первая точка поглаживания в (120, 120)
+        im.handle_mouse(120, 120)
+        self.assertEqual(im.pending_stats["petting_count"], 0)
+
+        # 2. Движение > 30px внутри расширенного радиуса (150, 150) с кулдауном
+        im.last_pet_time -= 1.0
+        im.handle_mouse(155, 155) # мазок от (120,120) до (155,155) это ~49px
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+
+    def test_settings_dialog_pet_size_slider(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.settings_dialog import SettingsDialog
+
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        mock_parent = MagicMock()
+
+        dialog = SettingsDialog(config, None)
+        dialog.parent = lambda: mock_parent
+        self.assertEqual(dialog.size_slider.value(), 100)
+
+        # Сдвигаем слайдер
+        dialog.size_slider.setValue(120)
+        mock_parent.set_pet_size.assert_called_with(120)
+
+        # Сохранение настроек
+        dialog.save_settings()
+        self.assertEqual(config.get("pet_size"), 120)
+
     def test_stats_dialog_reset_ui_flow(self):
         from src.ui.stats_dialog import StatsDialog
         from PySide6.QtWidgets import QMessageBox, QApplication

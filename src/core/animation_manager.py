@@ -132,7 +132,7 @@ class AnimationManager:
             painter.rotate(angle)
         elif self.current_state == "happy":
             # Прыжки
-            painter.translate(0, -abs(15 * math.sin(self.frame_counter * 0.5)))
+            painter.translate(0, -abs(size.height() * 0.15 * math.sin(self.frame_counter * 0.5)))
         elif self.current_state == "sleeping":
             # Глубокое медленное дыхание + наклон
             scale = 1.0 + 0.05 * math.sin(self.frame_counter * 0.1)
@@ -152,7 +152,7 @@ class AnimationManager:
         elif self.current_state == "eating":
             # Наклоны головы вперед-назад при еде
             scale_y = 1.0 + 0.1 * abs(math.sin(self.frame_counter * 0.8))
-            painter.translate(0, 10 * (scale_y - 1.0))
+            painter.translate(0, (size.height() * 0.1) * (scale_y - 1.0))
             painter.scale(1.0, scale_y)
         elif self.current_state == "thinking":
             # Наклон + покачивание
