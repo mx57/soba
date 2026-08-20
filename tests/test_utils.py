@@ -57,6 +57,7 @@ class TestUtils(unittest.TestCase):
         flags = window.windowFlags()
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
+        window.close()
 
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
@@ -356,6 +357,7 @@ class TestUtils(unittest.TestCase):
             self.assertNotIn("custom_todel_skin", CAT_SKINS)
             self.assertEqual(config.get("skin"), "default")
             self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
+            dialog.close()
         finally:
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
@@ -481,6 +483,63 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_pet_size_customization_and_scaling(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.settings_dialog import SettingsDialog
+
+        app = QApplication.instance() or QApplication([])
+
+        # 1. Проверяем ConfigManager дефолтный pet_size
+        config = ConfigManager(self.config_path)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Проверяем PetWindow с дефолтным и кастомным pet_size
+        config.set("pet_size", 150)
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.original_size.height(), 150)
+        self.assertEqual(window.width(), 150)
+
+        # 3. Динамический вызов set_pet_size
+        window.set_pet_size(200)
+        self.assertEqual(config.get("pet_size"), 200)
+        self.assertEqual(window.original_size.width(), 200)
+        self.assertEqual(window.width(), 200)
+
+        # 4. Проверяем SettingsDialog
+        dialog = SettingsDialog(config)
+        self.assertEqual(dialog.size_slider.value(), 200)
+        dialog.size_slider.setValue(120)
+        dialog.save_settings()
+        self.assertEqual(config.get("pet_size"), 120)
+        dialog.close()
+        window.close()
+
+        # 5. Проверяем динамический радиус поглаживания
+        mock_window = MagicMock()
+        mock_window.width.return_value = 200  # размер 200px
+        mock_window.height.return_value = 200
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Центр котика в (200, 200). Радиус для 200px котика = max(30, 200*0.6) = 120px
+        # Позиция (290, 200) имеет dx=90px, dy=0px (dist = 90px < 120px радиуса)
+        im.handle_mouse(200, 200) # Старт в центре
+        im.last_pet_time -= 1.0   # Смещаем время
+        im.handle_mouse(290, 200) # Сдвиг на 90px
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+
     def test_stats_dialog_reset_ui_flow(self):
         from src.ui.stats_dialog import StatsDialog
         from PySide6.QtWidgets import QMessageBox, QApplication
@@ -514,6 +573,7 @@ class TestUtils(unittest.TestCase):
         finally:
             QMessageBox.question = original_question
             QMessageBox.information = original_information
+            dialog.close()
             db.close()
 
 if __name__ == '__main__':
