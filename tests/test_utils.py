@@ -57,6 +57,7 @@ class TestUtils(unittest.TestCase):
         flags = window.windowFlags()
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
+        window.close()
 
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
@@ -356,6 +357,7 @@ class TestUtils(unittest.TestCase):
             self.assertNotIn("custom_todel_skin", CAT_SKINS)
             self.assertEqual(config.get("skin"), "default")
             self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
+            dialog.close()
         finally:
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
@@ -411,6 +413,40 @@ class TestUtils(unittest.TestCase):
         # Тест кастомного FPS
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
+        am.anim_timer.stop()
+        label.close()
+
+    def test_animation_manager_procedural_states(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from PySide6.QtCore import QSize
+        from src.core.animation_manager import AnimationManager
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        label.resize(QSize(100, 100))
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Мокаем svg_renderer для симуляции отрисовки кадров
+        mock_renderer = MagicMock()
+        am.svg_renderer = mock_renderer
+
+        states_to_test = [
+            "idle", "working", "happy", "sleeping", "hunting",
+            "overheat", "stretching", "eating", "thinking", "playing", "shaking"
+        ]
+
+        for state in states_to_test:
+            am.current_state = state
+            am.svg_renderer = mock_renderer
+            # Вызов обновления кадра не должен вызывать исключений
+            am.update_frame()
+            self.assertTrue(mock_renderer.render.called)
+            mock_renderer.reset_mock()
+
+        am.anim_timer.stop()
+        label.close()
 
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
@@ -511,6 +547,7 @@ class TestUtils(unittest.TestCase):
             dialog.confirm_reset()
             self.assertEqual(db.get_affection_points(), 0)
             QMessageBox.information.assert_called_once()
+            dialog.close()
         finally:
             QMessageBox.question = original_question
             QMessageBox.information = original_information
