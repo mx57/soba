@@ -6,6 +6,7 @@ sys.path.append(os.getcwd())
 
 from PySide6.QtWidgets import QApplication
 from src.ui.stats_dialog import StatsDialog
+from src.ui.settings_dialog import SettingsDialog
 from src.utils.data_store import DataStore
 from src.utils.config_manager import ConfigManager
 
@@ -55,6 +56,16 @@ def verify_ui():
     dialog.tabs.setCurrentIndex(1)
     app.processEvents()
     dialog.grab().save("verification/screenshots/stats_history.png")
+
+    # Settings dialog screenshot
+    config = ConfigManager("test_settings.json")
+    settings_dlg = SettingsDialog(config)
+    settings_dlg.show()
+    app.processEvents()
+    settings_dlg.grab().save("verification/screenshots/settings.png")
+    settings_dlg.close()
+    if os.path.exists("test_settings.json"):
+        os.remove("test_settings.json")
 
     print("Screenshots saved to verification/screenshots/")
 
