@@ -58,6 +58,8 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
 
+        window.close()
+
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
         config.set("username", "TestUser")
@@ -356,6 +358,7 @@ class TestUtils(unittest.TestCase):
             self.assertNotIn("custom_todel_skin", CAT_SKINS)
             self.assertEqual(config.get("skin"), "default")
             self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
+            dialog.close()
         finally:
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
@@ -511,10 +514,94 @@ class TestUtils(unittest.TestCase):
             dialog.confirm_reset()
             self.assertEqual(db.get_affection_points(), 0)
             QMessageBox.information.assert_called_once()
+            dialog.close()
         finally:
             QMessageBox.question = original_question
             QMessageBox.information = original_information
             db.close()
+
+    def test_pet_size_configuration_and_window_resizing(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QSize
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        window = PetWindow(config)
+        self.assertEqual(window.original_size, QSize(100, 100))
+
+        # Изменяем размер питомца
+        window.set_pet_size(150)
+        self.assertEqual(window.original_size, QSize(150, 150))
+        self.assertEqual(window.size(), QSize(150, 150))
+
+        window.close()
+
+    def test_settings_dialog_pet_size_slider(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.settings_dialog import SettingsDialog
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        config.set("pet_size", 120)
+
+        dialog = SettingsDialog(config)
+        self.assertEqual(dialog.pet_size_slider.value(), 120)
+        self.assertEqual(dialog.size_val_label.text(), "120px")
+
+        # Симулируем передвижение слайдера
+        dialog.pet_size_slider.setValue(180)
+        self.assertEqual(dialog.size_val_label.text(), "180px")
+
+        # Сохранение настроек
+        dialog.save_settings()
+        self.assertEqual(config.get("pet_size"), 180)
+
+        dialog.close()
+
+    def test_dynamic_petting_radius_scaling(self):
+        mock_window = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+        mock_window.animation_manager.current_state = "idle"
+
+        # Ветка 1: Стандартная ширина 100px -> радиус 60px
+        mock_window.width.return_value = 100
+        mock_window.height.return_value = 100
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Центр котика при окне 100x100 на pos (100, 100) — это (150, 150)
+        pet_pos = MagicMock()
+        pet_pos.x.return_value = 100
+        pet_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = pet_pos
+
+        # Расстояние 70px от центра (220, 150) -> превышает радиус 60px
+        im.handle_mouse(220, 150)
+        self.assertEqual(im.last_pet_time, 0)
+
+        # Расстояние 50px от центра (200, 150) -> в пределах радиуса 60px
+        im.handle_mouse(200, 150)
+        self.assertNotEqual(im.last_pet_time, 0)
+
+        # Ветка 2: Увеличенная ширина 200px -> радиус 120px
+        mock_window.width.return_value = 200
+        mock_window.height.return_value = 200
+        # Центр котика при окне 200x200 на pos (100, 100) — это (200, 200)
+        im.last_pet_time = 0
+
+        # Расстояние 100px от центра (300, 200) -> при радиусе 60px это было бы слишком далеко,
+        # но при радиусе 120px (для 200px котика) находится внутри
+        im.handle_mouse(300, 200)
+        self.assertNotEqual(im.last_pet_time, 0)
+
+        db.close()
 
 if __name__ == '__main__':
     unittest.main()
