@@ -516,5 +516,35 @@ class TestUtils(unittest.TestCase):
             QMessageBox.information = original_information
             db.close()
 
+    def test_pet_size_feature(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.settings_dialog import SettingsDialog
+
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        config.set("pet_size", 150)
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.original_size.height(), 150)
+
+        window.set_pet_size(180)
+        self.assertEqual(window.original_size.width(), 180)
+        self.assertEqual(window.width(), 180)
+        self.assertEqual(config.get("pet_size"), 180)
+
+        # SettingsDialog slider test
+        dialog = SettingsDialog(config)
+        self.assertEqual(dialog.size_slider.value(), 180)
+
+        dialog.size_slider.setValue(120)
+        dialog.save_settings()
+        self.assertEqual(config.get("pet_size"), 120)
+
+        window.close()
+
 if __name__ == '__main__':
     unittest.main()
