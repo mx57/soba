@@ -412,6 +412,36 @@ class TestUtils(unittest.TestCase):
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
 
+    def test_animation_manager_playing_and_shaking_procedural_transforms(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from src.core.animation_manager import AnimationManager
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        label.resize(100, 100)
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Переключаем на SVG скин для тестирования процедурного SVG движка
+        am.set_skin("ginger")
+
+        # Проверка состояния playing
+        am.play_state("playing")
+        self.assertEqual(am.current_state, "playing")
+        self.assertEqual(am.current_fps, 12)
+        am.update_frame()
+        self.assertIsNotNone(label.pixmap())
+        self.assertFalse(label.pixmap().isNull())
+
+        # Проверка состояния shaking
+        am.play_state("shaking")
+        self.assertEqual(am.current_state, "shaking")
+        self.assertEqual(am.current_fps, 20)
+        am.update_frame()
+        self.assertIsNotNone(label.pixmap())
+        self.assertFalse(label.pixmap().isNull())
+
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
         from PySide6.QtMultimedia import QSoundEffect
