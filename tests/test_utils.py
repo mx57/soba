@@ -58,6 +58,53 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
 
+        window.close()
+
+    def test_pet_size_configuration_and_window(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Проверяем дефолтное значение pet_size в ConfigManager
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Установка нового размера в ConfigManager
+        config.set("pet_size", 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        # 3. Проверяем геометрию PetWindow
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.original_size.height(), 150)
+
+        # 4. Динамическое изменение размера окна через set_pet_size
+        window.set_pet_size(200)
+        self.assertEqual(window.original_size.width(), 200)
+        self.assertEqual(window.original_size.height(), 200)
+        self.assertEqual(config.get("pet_size"), 200)
+
+        window.close()
+
+    def test_tray_menu_select_skin_saves_config(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.tray_menu import TrayMenu
+
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        window = PetWindow(config)
+        tray = TrayMenu(window)
+
+        # Выбор скина через трей должен немедленно записать его в конфиг
+        tray.select_skin("orange")
+        self.assertEqual(window.animation_manager.skin, "orange")
+        self.assertEqual(config.get("skin"), "orange")
+
+        window.close()
+
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
         config.set("username", "TestUser")
@@ -306,6 +353,8 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(anim_mgr.skin, "custom_test_skin")
         self.assertTrue(anim_mgr.current_anim_path.endswith("cat_custom_test_skin.svg"))
 
+        label.close()
+
         # Очистка
         if os.path.exists(test_svg_path):
             os.remove(test_svg_path)
@@ -356,6 +405,8 @@ class TestUtils(unittest.TestCase):
             self.assertNotIn("custom_todel_skin", CAT_SKINS)
             self.assertEqual(config.get("skin"), "default")
             self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
+
+            dialog.close()
         finally:
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
@@ -411,6 +462,8 @@ class TestUtils(unittest.TestCase):
         # Тест кастомного FPS
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
+
+        label.close()
 
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
@@ -514,6 +567,7 @@ class TestUtils(unittest.TestCase):
         finally:
             QMessageBox.question = original_question
             QMessageBox.information = original_information
+            dialog.close()
             db.close()
 
 if __name__ == '__main__':

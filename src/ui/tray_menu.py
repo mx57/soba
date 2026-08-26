@@ -183,9 +183,10 @@ class TrayMenu(QObject):
     def show_settings(self, checked=False):
         dialog = SettingsDialog(self.window.config, self.window)
         if dialog.exec():
-            # Обновляем скин и прозрачность в реальном времени
+            # Обновляем скин, прозрачность и размер в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            self.window.set_pet_size(self.window.config.get("pet_size"))
             # Обновляем меню скинов
             self.update_skin_menu()
             # Обновляем режим "Поверх всех окон" в реальном времени
@@ -242,5 +243,10 @@ class TrayMenu(QObject):
         self.skin_menu.clear()
         for skin_id, name in CAT_SKINS.items():
             action = QAction(name, self)
-            action.triggered.connect(lambda checked=False, sid=skin_id: self.window.animation_manager.set_skin(sid))
+            action.triggered.connect(lambda checked=False, sid=skin_id: self.select_skin(sid))
             self.skin_menu.addAction(action)
+
+    def select_skin(self, skin_id):
+        self.window.animation_manager.set_skin(skin_id)
+        if self.window.config:
+            self.window.config.set("skin", skin_id)
