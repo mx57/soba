@@ -214,6 +214,36 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_laser_mode_signal_sync(self):
+        from src.ui.tray_menu import TrayMenu
+        from PySide6.QtWidgets import QApplication
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        window = PetWindow(config)
+        im = InputManager(window)
+        window.input_manager = im
+
+        tray = TrayMenu(window)
+
+        # Изначально не активен
+        self.assertFalse(im.laser_mode)
+        self.assertFalse(tray.laser_action.isChecked())
+
+        # Переключаем режим лазерной указки через InputManager
+        im.toggle_laser_mode()
+        self.assertTrue(im.laser_mode)
+        self.assertTrue(tray.laser_action.isChecked())
+
+        # Повторное переключение
+        im.toggle_laser_mode()
+        self.assertFalse(im.laser_mode)
+        self.assertFalse(tray.laser_action.isChecked())
+
+        window.close()
+
     def test_force_state_delays_idle(self):
         mock_window = MagicMock()
         mock_window.animation_manager.current_state = "idle"
