@@ -214,6 +214,37 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_laser_mode_signal_sync(self):
+        from src.ui.tray_menu import TrayMenu
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        db = DataStore(self.db_path)
+        config = ConfigManager(self.config_path)
+
+        window = PetWindow(config)
+        im = InputManager(window, db)
+        window.input_manager = im
+
+        tray = TrayMenu(window)
+
+        # Проверяем начальное состояние
+        self.assertFalse(tray.laser_action.isChecked())
+        self.assertFalse(im.laser_mode)
+
+        # Вызываем toggle_laser_mode на InputManager и проверяем синхронизацию галочки в меню
+        im.toggle_laser_mode()
+        self.assertTrue(im.laser_mode)
+        self.assertTrue(tray.laser_action.isChecked())
+
+        # Вызываем еще раз для отключения
+        im.toggle_laser_mode()
+        self.assertFalse(im.laser_mode)
+        self.assertFalse(tray.laser_action.isChecked())
+
+        db.close()
+
     def test_force_state_delays_idle(self):
         mock_window = MagicMock()
         mock_window.animation_manager.current_state = "idle"
