@@ -29,6 +29,31 @@ class TestUtils(unittest.TestCase):
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
 
+    def test_pet_size_logic(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Проверяем значение по умолчанию (100)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Перезапись и сохранение
+        config.set("pet_size", 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        # 3. Применение размера к PetWindow
+        window = PetWindow(config)
+        self.assertEqual(window.width(), 150)
+        self.assertEqual(window.height(), 150)
+
+        # 4. Динамическое изменение через set_pet_size
+        window.set_pet_size(200)
+        self.assertEqual(window.width(), 200)
+        self.assertEqual(window.height(), 200)
+        self.assertEqual(config.get("pet_size"), 200)
+
     def test_always_on_top_logic(self):
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         from PySide6.QtWidgets import QApplication
