@@ -55,7 +55,8 @@ class PetWindow(QMainWindow):
         self.is_dragging = False
         self.shake_count = 0
         self.last_shake_time = 0
-        self.original_size = QSize(100, 100)
+        pet_size = self.config.get("pet_size") if self.config else 100
+        self.original_size = QSize(pet_size, pet_size)
 
         # Начальный размер
         self.resize(self.original_size)
@@ -90,6 +91,14 @@ class PetWindow(QMainWindow):
     def set_opacity(self, value):
         """Устанавливает прозрачность окна (0-100)"""
         self.setWindowOpacity(value / 100.0)
+
+    def set_pet_size(self, size):
+        """Устанавливает базовый размер питомца и обновляет окно."""
+        if self.config:
+            self.config.set("pet_size", size)
+        self.original_size = QSize(size, size)
+        self.resize(self.original_size)
+        self.animation_manager.update_size(self.size())
 
     def set_always_on_top(self, enabled):
         """Включает или выключает режим 'Поверх всех окон' динамически"""
@@ -172,12 +181,13 @@ class PetWindow(QMainWindow):
         if self.pos_animation.state() == QPropertyAnimation.Running and self.pos_animation.endValue() == dest_point:
             return
 
-        # Проверка "поимки"
+        # Проверка "поимки" (порог масштабируется в зависимости от размера окна)
         curr_pos = self.get_cached_pos()
         dx = curr_pos.x() - dest_x
         dy = curr_pos.y() - dest_y
         dist_sq = dx * dx + dy * dy
-        if dist_sq < 100: # 10 пикселей
+        catch_threshold_sq = (self.width() * 0.1) ** 2
+        if dist_sq < catch_threshold_sq:
             if self.animation_manager.current_state == "hunting":
                 self.animation_manager.play_state("happy")
                 self.show_message("Поймал! 🐾")

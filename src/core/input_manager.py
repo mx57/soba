@@ -402,16 +402,21 @@ class InputManager(QObject):
         self.last_mouse_pos = (x, y)
         self.last_mouse_time = now
 
-        # Проверка "поглаживания"
+        # Проверка "поглаживания" (радиус и мазок мыши масштабируются от размера питомца)
         pet_pos = self.window.get_cached_pos()
-        center_x = pet_pos.x() + self.window.width() // 2
-        center_y = pet_pos.y() + self.window.height() // 2
+        pet_w = self.window.width()
+        pet_h = self.window.height()
+        center_x = pet_pos.x() + pet_w // 2
+        center_y = pet_pos.y() + pet_h // 2
         dx_pet = x - center_x
         dy_pet = y - center_y
         dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
 
-        # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
-        if dist_sq_pet < 3600:
+        # Динамический радиус поглаживания (0.6 от размера, по умолчанию 60px)
+        pet_radius = max(pet_w, pet_h) * 0.6
+        pet_radius_sq = pet_radius * pet_radius
+
+        if dist_sq_pet < pet_radius_sq:
             # Исключаем пассивный фарм (требуем активное поглаживание: активное движение мыши и кулдаун)
             if self.last_pet_time == 0:
                 self.last_pet_mouse_pos = (x, y)
@@ -421,8 +426,12 @@ class InputManager(QObject):
             dy_stroke = y - self.last_pet_mouse_pos[1]
             stroke_dist_sq = dx_stroke * dx_stroke + dy_stroke * dy_stroke
 
-            # Кулдаун 500мс и требование к длине мазка движения (30px -> 900)
-            if now - self.last_pet_time >= 0.5 and stroke_dist_sq >= 900:
+            # Динамический порог мазка мыши (0.3 от размера, по умолчанию 30px -> 900)
+            min_stroke = max(pet_w, pet_h) * 0.3
+            min_stroke_sq = min_stroke * min_stroke
+
+            # Кулдаун 500мс и требование к длине мазка движения
+            if now - self.last_pet_time >= 0.5 and stroke_dist_sq >= min_stroke_sq:
                 # Если активно другое форсированное состояние (например, eating), не сбиваем его
                 is_another_forced_active = self.forced_state_name is not None and self.forced_state_name != "playing" and now < self.forced_state_expires
                 if not is_another_forced_active:
