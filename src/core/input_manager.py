@@ -44,6 +44,8 @@ class InputMonitor(QThread):
             self.keyboard_listener.stop()
 
 class InputManager(QObject):
+    laser_mode_changed = Signal(bool)
+
     def __init__(self, pet_window, data_store=None):
         super().__init__()
         self.window = pet_window
@@ -440,8 +442,12 @@ class InputManager(QObject):
             # Сброс начальной точки поглаживания при выходе за пределы питомца
             self.last_pet_time = 0
 
-    def toggle_laser_mode(self):
-        self.laser_mode = not self.laser_mode
+    def toggle_laser_mode(self, enabled=None):
+        target_state = not self.laser_mode if enabled is None else bool(enabled)
+        if self.laser_mode == target_state:
+            return self.laser_mode
+
+        self.laser_mode = target_state
         if self.laser_mode:
             self.window.animation_manager.play_state("hunting")
             # Создаем красивый светящийся красный лазерный курсор
@@ -470,10 +476,15 @@ class InputManager(QObject):
         else:
             self.window.setCursor(Qt.ArrowCursor)
             self.window.animation_manager.play_state("idle")
+
+        self.laser_mode_changed.emit(self.laser_mode)
         return self.laser_mode
 
     def reset_all_data(self):
         """Очищает базу данных и безопасно сбрасывает все внутриигровые показатели, кэши и аккумуляторы в памяти."""
+        if self.laser_mode:
+            self.toggle_laser_mode(False)
+
         if not self.db:
             return
 

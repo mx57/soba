@@ -201,16 +201,33 @@ class TestUtils(unittest.TestCase):
         db = DataStore(self.db_path)
         im = InputManager(mock_window, db)
 
-        # Переключаем лазер в True
+        # Проверяем подписку на сигнал laser_mode_changed
+        signal_received = []
+        im.laser_mode_changed.connect(lambda val: signal_received.append(val))
+
+        # 1. Переключаем лазер в True
         im.toggle_laser_mode()
         self.assertTrue(im.laser_mode)
+        self.assertEqual(signal_received, [True])
         mock_window.animation_manager.play_state.assert_called_with("hunting")
         mock_window.setCursor.assert_called()
 
-        # Переключаем обратно в False
-        im.toggle_laser_mode()
+        # 2. Переключаем явно в True (состояние не должно меняться или дублировать обработку)
+        im.toggle_laser_mode(True)
+        self.assertTrue(im.laser_mode)
+        self.assertEqual(signal_received, [True])
+
+        # 3. Переключаем обратно в False
+        im.toggle_laser_mode(False)
         self.assertFalse(im.laser_mode)
+        self.assertEqual(signal_received, [True, False])
         mock_window.animation_manager.play_state.assert_called_with("idle")
+
+        # 4. Проверяем авто-сброс режима лазера при reset_all_data()
+        im.toggle_laser_mode(True)
+        self.assertTrue(im.laser_mode)
+        im.reset_all_data()
+        self.assertFalse(im.laser_mode)
 
         db.close()
 

@@ -59,10 +59,13 @@ class TrayMenu(QObject):
         self.menu.addSeparator()
 
         # Лазерная указка
-        laser_action = QAction("Лазерная указка 🔴", self)
-        laser_action.setCheckable(True)
-        laser_action.triggered.connect(self.toggle_laser)
-        self.menu.addAction(laser_action)
+        self.laser_action = QAction("Лазерная указка 🔴", self)
+        self.laser_action.setCheckable(True)
+        self.laser_action.triggered.connect(self.toggle_laser)
+        if self.window.input_manager:
+            self.laser_action.setChecked(self.window.input_manager.laser_mode)
+            self.window.input_manager.laser_mode_changed.connect(self.laser_action.setChecked)
+        self.menu.addAction(self.laser_action)
 
         self.menu.addSeparator()
 
@@ -232,7 +235,7 @@ class TrayMenu(QObject):
 
     def toggle_laser(self, checked):
         if self.window.input_manager:
-            is_active = self.window.input_manager.toggle_laser_mode()
+            is_active = self.window.input_manager.toggle_laser_mode(checked)
             if is_active:
                 self.show_message("Мини-игра", "Лазерная указка активирована! 🔴")
             else:
