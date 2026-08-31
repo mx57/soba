@@ -57,6 +57,7 @@ class TestUtils(unittest.TestCase):
         flags = window.windowFlags()
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
+        window.close()
 
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
@@ -306,6 +307,8 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(anim_mgr.skin, "custom_test_skin")
         self.assertTrue(anim_mgr.current_anim_path.endswith("cat_custom_test_skin.svg"))
 
+        label.close()
+
         # Очистка
         if os.path.exists(test_svg_path):
             os.remove(test_svg_path)
@@ -357,6 +360,7 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(config.get("skin"), "default")
             self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
         finally:
+            dialog.close()
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
             QMessageBox.information = original_information
@@ -411,6 +415,7 @@ class TestUtils(unittest.TestCase):
         # Тест кастомного FPS
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
+        label.close()
 
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
@@ -481,6 +486,55 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_procedural_animations_playing_shaking(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from PySide6.QtSvg import QSvgRenderer
+        from src.core.animation_manager import AnimationManager
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        label.resize(100, 100)
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # 1. Проверяем обновление кадра для 'playing'
+        am.current_state = "playing"
+        am.svg_renderer = MagicMock(spec=QSvgRenderer)
+        self.assertEqual(am.current_state, "playing")
+        am.update_frame()
+        am.svg_renderer.render.assert_called()
+
+        # 2. Проверяем обновление кадра для 'shaking'
+        am.current_state = "shaking"
+        am.svg_renderer = MagicMock(spec=QSvgRenderer)
+        self.assertEqual(am.current_state, "shaking")
+        am.update_frame()
+        am.svg_renderer.render.assert_called()
+
+        label.close()
+
+    def test_laser_mode_changed_signal(self):
+        mock_window = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        signal_received = []
+        im.laser_mode_changed.connect(lambda val: signal_received.append(val))
+
+        # Переключаем режим лазера и проверяем излучение сигнала
+        im.toggle_laser_mode()
+        self.assertEqual(signal_received, [True])
+
+        im.toggle_laser_mode()
+        self.assertEqual(signal_received, [True, False])
+
+        db.close()
+
     def test_stats_dialog_reset_ui_flow(self):
         from src.ui.stats_dialog import StatsDialog
         from PySide6.QtWidgets import QMessageBox, QApplication
@@ -512,6 +566,7 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(db.get_affection_points(), 0)
             QMessageBox.information.assert_called_once()
         finally:
+            dialog.close()
             QMessageBox.question = original_question
             QMessageBox.information = original_information
             db.close()
