@@ -44,6 +44,8 @@ class InputMonitor(QThread):
             self.keyboard_listener.stop()
 
 class InputManager(QObject):
+    laser_mode_changed = Signal(bool)
+
     def __init__(self, pet_window, data_store=None):
         super().__init__()
         self.window = pet_window
@@ -442,6 +444,7 @@ class InputManager(QObject):
 
     def toggle_laser_mode(self):
         self.laser_mode = not self.laser_mode
+        self.laser_mode_changed.emit(self.laser_mode)
         if self.laser_mode:
             self.window.animation_manager.play_state("hunting")
             # Создаем красивый светящийся красный лазерный курсор
