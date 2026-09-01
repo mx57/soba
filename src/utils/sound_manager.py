@@ -25,3 +25,9 @@ class SoundManager:
             volume = self.config.get("volume") if self.config else 70
         effect.setVolume(volume / 100.0)
         effect.play()
+
+    def clear(self):
+        for effect in list(self.sounds.values()):
+            if hasattr(effect, "stop"):
+                effect.stop()
+        self.sounds.clear()

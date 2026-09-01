@@ -51,6 +51,11 @@ class StatsDialog(QDialog):
 
         main_layout.addLayout(btn_layout)
 
+    def closeEvent(self, event):
+        if hasattr(self, 'update_timer') and self.update_timer:
+            self.update_timer.stop()
+        super().closeEvent(event)
+
     def update_ui(self):
         self.update_progress_ui()
         if self.tabs.currentIndex() == 1:

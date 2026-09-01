@@ -44,6 +44,8 @@ class InputMonitor(QThread):
             self.keyboard_listener.stop()
 
 class InputManager(QObject):
+    laser_mode_changed = Signal(bool)
+
     def __init__(self, pet_window, data_store=None):
         super().__init__()
         self.window = pet_window
@@ -116,6 +118,14 @@ class InputManager(QObject):
     def start(self):
         self.monitor.start()
         self.watchdog.start(500) # Проверка каждые 0.5 сек
+
+    def stop(self):
+        if hasattr(self, 'watchdog') and self.watchdog:
+            self.watchdog.stop()
+        if hasattr(self, 'monitor') and self.monitor:
+            self.monitor.stop()
+            if self.monitor.isRunning():
+                self.monitor.wait()
 
     def _update_kps(self):
         """Обновляет скользящее окно KPS и текущий счетчик нажатий."""
@@ -410,8 +420,9 @@ class InputManager(QObject):
         dy_pet = y - center_y
         dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
 
-        # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
-        if dist_sq_pet < 3600:
+        # Оптимизация: сравнение квадрата расстояния (радиус динамически масштабируется с размером котика)
+        radius = max(25.0, self.window.width() * 0.6)
+        if dist_sq_pet < radius * radius:
             # Исключаем пассивный фарм (требуем активное поглаживание: активное движение мыши и кулдаун)
             if self.last_pet_time == 0:
                 self.last_pet_mouse_pos = (x, y)
@@ -442,6 +453,7 @@ class InputManager(QObject):
 
     def toggle_laser_mode(self):
         self.laser_mode = not self.laser_mode
+        self.laser_mode_changed.emit(self.laser_mode)
         if self.laser_mode:
             self.window.animation_manager.play_state("hunting")
             # Создаем красивый светящийся красный лазерный курсор
