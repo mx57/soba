@@ -29,6 +29,13 @@ class TestUtils(unittest.TestCase):
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
 
+    @classmethod
+    def tearDownClass(cls):
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            app.processEvents()
+
     def test_always_on_top_logic(self):
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         from PySide6.QtWidgets import QApplication
@@ -57,6 +64,8 @@ class TestUtils(unittest.TestCase):
         flags = window.windowFlags()
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
+
+        window.close()
 
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
@@ -114,6 +123,7 @@ class TestUtils(unittest.TestCase):
 
         # 3. Проверяем остановку
         ts.stop_pomodoro()
+        ts.stretch_timer.stop()
         self.assertEqual(ts.pomodoro_state, "idle")
         self.assertEqual(ts.pomodoro_remaining, 0)
 
@@ -156,6 +166,7 @@ class TestUtils(unittest.TestCase):
         im.handle_mouse(190, 190) # движение от (150,150) к (190,190) это ~56px
         self.assertEqual(im.pending_stats["petting_count"], 1)
 
+        im.stop()
         db.close()
 
     def test_periodic_check_time_accumulators(self):
@@ -186,6 +197,7 @@ class TestUtils(unittest.TestCase):
         self.assertAlmostEqual(im.points_time_accumulator, 0.5, places=1)
         self.assertAlmostEqual(im.work_time_accumulator, 0.5, places=1)
 
+        im.stop()
         db.close()
 
     def test_laser_mode_transitions(self):
@@ -201,18 +213,57 @@ class TestUtils(unittest.TestCase):
         db = DataStore(self.db_path)
         im = InputManager(mock_window, db)
 
+        signal_emitted = []
+        im.laser_mode_changed.connect(lambda active: signal_emitted.append(active))
+
         # Переключаем лазер в True
         im.toggle_laser_mode()
         self.assertTrue(im.laser_mode)
+        self.assertEqual(signal_emitted, [True])
         mock_window.animation_manager.play_state.assert_called_with("hunting")
         mock_window.setCursor.assert_called()
 
         # Переключаем обратно в False
         im.toggle_laser_mode()
         self.assertFalse(im.laser_mode)
+        self.assertEqual(signal_emitted, [True, False])
         mock_window.animation_manager.play_state.assert_called_with("idle")
 
+        im.stop()
         db.close()
+
+    def test_pet_size_configuration_and_window_resize(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QSize
+        from src.ui.settings_dialog import SettingsDialog
+
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Проверяем значение по умолчанию
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Инициализация PetWindow
+        window = PetWindow(config)
+        self.assertEqual(window.original_size, QSize(100, 100))
+
+        # 3. Изменение размера через set_pet_size
+        window.set_pet_size(150)
+        self.assertEqual(window.original_size, QSize(150, 150))
+        self.assertEqual(config.get("pet_size"), 150)
+
+        # 4. Проверяем регулятор в SettingsDialog
+        dialog = SettingsDialog(config)
+        self.assertEqual(dialog.size_slider.value(), 150)
+        dialog.size_slider.setValue(200)
+        dialog.save_settings()
+
+        self.assertEqual(config.get("pet_size"), 200)
+
+        dialog.close()
+        window.close()
 
     def test_force_state_delays_idle(self):
         mock_window = MagicMock()
@@ -233,6 +284,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(im.forced_state_name, "eating")
         self.assertTrue(im.forced_state_expires > now + 4.5)
 
+        im.stop()
         db.close()
 
     def test_force_state_expiry_and_resets(self):
@@ -260,6 +312,7 @@ class TestUtils(unittest.TestCase):
         self.assertIsNone(im.forced_state_name)
         mock_window.animation_manager.play_state.assert_any_call("idle")
 
+        im.stop()
         db.close()
 
     def test_sound_manager_with_none_config(self):
@@ -267,6 +320,7 @@ class TestUtils(unittest.TestCase):
         sm = SoundManager(None)
         # Test that play_sound on a non-existent sound returns gracefully and doesn't crash on None config
         sm.play_sound("non_existent_sound_123")
+        sm.clear()
 
     def test_custom_skins_integration(self):
         # 1. Запись тестового SVG-файла
@@ -305,6 +359,9 @@ class TestUtils(unittest.TestCase):
 
         self.assertEqual(anim_mgr.skin, "custom_test_skin")
         self.assertTrue(anim_mgr.current_anim_path.endswith("cat_custom_test_skin.svg"))
+
+        anim_mgr.anim_timer.stop()
+        label.close()
 
         # Очистка
         if os.path.exists(test_svg_path):
@@ -357,6 +414,7 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(config.get("skin"), "default")
             self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
         finally:
+            dialog.close()
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
             QMessageBox.information = original_information
@@ -381,6 +439,7 @@ class TestUtils(unittest.TestCase):
         # Проверка воспроизведения с переопределенной громкостью
         sm.play_sound("test_meow", volume=80)
         mock_effect.setVolume.assert_called_with(0.8)
+        sm.clear()
 
     def test_animation_manager_current_fps(self):
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -412,6 +471,9 @@ class TestUtils(unittest.TestCase):
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
 
+        am.anim_timer.stop()
+        label.close()
+
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
         from PySide6.QtMultimedia import QSoundEffect
@@ -427,6 +489,7 @@ class TestUtils(unittest.TestCase):
         # Ожидаем, что сработает резервный meow
         sm.play_sound("happy")
         mock_effect.play.assert_called()
+        sm.clear()
 
     def test_data_store_reset_logic(self):
         db = DataStore(self.db_path)
@@ -479,6 +542,7 @@ class TestUtils(unittest.TestCase):
         # Проверяем сброс в БД
         self.assertEqual(db.get_affection_points(), 0)
 
+        im.stop()
         db.close()
 
     def test_stats_dialog_reset_ui_flow(self):
@@ -512,6 +576,7 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(db.get_affection_points(), 0)
             QMessageBox.information.assert_called_once()
         finally:
+            dialog.close()
             QMessageBox.question = original_question
             QMessageBox.information = original_information
             db.close()
