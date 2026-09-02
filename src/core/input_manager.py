@@ -44,6 +44,8 @@ class InputMonitor(QThread):
             self.keyboard_listener.stop()
 
 class InputManager(QObject):
+    laser_mode_changed = Signal(bool)
+
     def __init__(self, pet_window, data_store=None):
         super().__init__()
         self.window = pet_window
@@ -410,8 +412,9 @@ class InputManager(QObject):
         dy_pet = y - center_y
         dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
 
-        # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
-        if dist_sq_pet < 3600:
+        # Динамический радиус поглаживания в зависимости от размера окна питомца
+        pet_radius = max(30.0, min(self.window.width(), self.window.height()) * 0.6)
+        if dist_sq_pet < pet_radius * pet_radius:
             # Исключаем пассивный фарм (требуем активное поглаживание: активное движение мыши и кулдаун)
             if self.last_pet_time == 0:
                 self.last_pet_mouse_pos = (x, y)
@@ -470,6 +473,7 @@ class InputManager(QObject):
         else:
             self.window.setCursor(Qt.ArrowCursor)
             self.window.animation_manager.play_state("idle")
+        self.laser_mode_changed.emit(self.laser_mode)
         return self.laser_mode
 
     def reset_all_data(self):

@@ -59,10 +59,13 @@ class TrayMenu(QObject):
         self.menu.addSeparator()
 
         # Лазерная указка
-        laser_action = QAction("Лазерная указка 🔴", self)
-        laser_action.setCheckable(True)
-        laser_action.triggered.connect(self.toggle_laser)
-        self.menu.addAction(laser_action)
+        self.laser_action = QAction("Лазерная указка 🔴", self)
+        self.laser_action.setCheckable(True)
+        if self.window.input_manager:
+            self.laser_action.setChecked(self.window.input_manager.laser_mode)
+            self.window.input_manager.laser_mode_changed.connect(self.laser_action.setChecked)
+        self.laser_action.triggered.connect(self.toggle_laser)
+        self.menu.addAction(self.laser_action)
 
         self.menu.addSeparator()
 
@@ -183,9 +186,10 @@ class TrayMenu(QObject):
     def show_settings(self, checked=False):
         dialog = SettingsDialog(self.window.config, self.window)
         if dialog.exec():
-            # Обновляем скин и прозрачность в реальном времени
+            # Обновляем скин, прозрачность и размер питомца в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            self.window.set_pet_size(self.window.config.get("pet_size"))
             # Обновляем меню скинов
             self.update_skin_menu()
             # Обновляем режим "Поверх всех окон" в реальном времени
@@ -238,9 +242,18 @@ class TrayMenu(QObject):
             else:
                 self.show_message("Мини-игра", "Лазерная указка выключена.")
 
+    def select_skin(self, skin_id):
+        self.window.animation_manager.set_skin(skin_id)
+        if self.window.config:
+            self.window.config.set("skin", skin_id)
+        self.update_skin_menu()
+
     def update_skin_menu(self):
         self.skin_menu.clear()
+        current_skin = self.window.config.get("skin") if self.window.config else "default"
         for skin_id, name in CAT_SKINS.items():
             action = QAction(name, self)
-            action.triggered.connect(lambda checked=False, sid=skin_id: self.window.animation_manager.set_skin(sid))
+            action.setCheckable(True)
+            action.setChecked(skin_id == current_skin)
+            action.triggered.connect(lambda checked=False, sid=skin_id: self.select_skin(sid))
             self.skin_menu.addAction(action)

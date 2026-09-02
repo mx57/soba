@@ -516,5 +516,146 @@ class TestUtils(unittest.TestCase):
             QMessageBox.information = original_information
             db.close()
 
+    def test_procedural_animations_playing_shaking(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from src.core.animation_manager import AnimationManager
+        from PySide6.QtSvg import QSvgRenderer
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        label.resize(100, 100)
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Мокаем svg_renderer
+        am.svg_renderer = MagicMock(spec=QSvgRenderer)
+
+        # Проверяем кадр состояния "playing"
+        am.play_state("playing")
+        am.update_frame()
+        self.assertEqual(am.current_state, "playing")
+        self.assertIsNotNone(label.pixmap())
+
+        # Проверяем кадр состояния "shaking"
+        am.play_state("shaking")
+        am.update_frame()
+        self.assertEqual(am.current_state, "shaking")
+        self.assertIsNotNone(label.pixmap())
+
+        am.anim_timer.stop()
+        label.close()
+
+    def test_laser_mode_signal_and_tray_sync(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.tray_menu import TrayMenu
+
+        app = QApplication.instance() or QApplication([])
+        config = ConfigManager(self.config_path)
+        window = PetWindow(config)
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+        window.input_manager = im
+
+        tray = TrayMenu(window)
+
+        # Проверяем, что сигнал переключает галочку в трей-меню
+        im.toggle_laser_mode()
+        self.assertTrue(im.laser_mode)
+        self.assertTrue(tray.laser_action.isChecked())
+
+        im.toggle_laser_mode()
+        self.assertFalse(im.laser_mode)
+        self.assertFalse(tray.laser_action.isChecked())
+
+        im.watchdog.stop()
+        window.close()
+        tray.deleteLater()
+        db.close()
+
+    def test_tray_menu_skin_checkmarks(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.tray_menu import TrayMenu
+
+        app = QApplication.instance() or QApplication([])
+        config = ConfigManager(self.config_path)
+        config.set("skin", "orange")
+        window = PetWindow(config)
+
+        tray = TrayMenu(window)
+
+        # Находим action для "orange" и "default"
+        orange_action = None
+        default_action = None
+        for action in tray.skin_menu.actions():
+            if action.text() == "Рыжий":
+                orange_action = action
+            elif action.text() == "Стандартный":
+                default_action = action
+
+        self.assertIsNotNone(orange_action)
+        self.assertIsNotNone(default_action)
+        self.assertTrue(orange_action.isChecked())
+        self.assertFalse(default_action.isChecked())
+
+        # Выбираем другой скин
+        tray.select_skin("default")
+        self.assertEqual(config.get("skin"), "default")
+
+        window.close()
+        tray.deleteLater()
+
+    def test_pet_size_and_dynamic_petting_radius(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.settings_dialog import SettingsDialog
+
+        app = QApplication.instance() or QApplication([])
+        config = ConfigManager(self.config_path)
+
+        # 1. Проверяем дефолтный pet_size в ConfigManager
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Инициализация и изменение размера через PetWindow.set_pet_size
+        window = PetWindow(config)
+        self.assertEqual(window.width(), 100)
+        self.assertEqual(window.height(), 100)
+
+        window.set_pet_size(150)
+        self.assertEqual(window.width(), 150)
+        self.assertEqual(window.height(), 150)
+        self.assertEqual(window.original_size.width(), 150)
+
+        # 3. Настройка pet_size в SettingsDialog
+        dialog = SettingsDialog(config)
+        dialog.size_slider.setValue(180)
+        dialog.save_settings()
+        self.assertEqual(config.get("pet_size"), 180)
+
+        # 4. Проверка динамического радиуса поглаживания в InputManager
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+
+        # При окне 150x150, центр на (175, 175) для позиционирования окна на (100, 100)
+        # pet_radius = max(30, 150 * 0.6) = 90px
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        window.get_cached_pos = MagicMock(return_value=mock_pos)
+
+        # Поглаживание в пределах 90px от центра (175, 175) - например на (235, 235)
+        im.handle_mouse(175, 175)
+        im.last_pet_time -= 1.0
+        im.last_mouse_time -= 1.0  # симулируем нормальную скорость движения мыши (не мгновенный скачок)
+        im.handle_mouse(235, 235)  # Расстояние от 175 до 235 = 60px (< 90px радиус), вектор движения ~85px > 30px
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        im.watchdog.stop()
+        window.close()
+        dialog.close()
+        db.close()
+
 if __name__ == '__main__':
     unittest.main()
