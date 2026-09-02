@@ -157,6 +157,21 @@ class AnimationManager:
         elif self.current_state == "thinking":
             # Наклон + покачивание
             painter.rotate(10 + 5 * math.sin(self.frame_counter * 0.2))
+        elif self.current_state == "playing":
+            # Веселые попрыгивания с покачиванием
+            angle = 8 * math.sin(self.frame_counter * 0.6)
+            jump_y = -abs(10 * math.sin(self.frame_counter * 0.6))
+            painter.translate(0, jump_y)
+            painter.rotate(angle)
+        elif self.current_state == "shaking":
+            # Сильное головокружительное встряхивание с изменением масштаба
+            angle = 12 * math.sin(self.frame_counter * 1.2)
+            shake_x = random.randint(-5, 5)
+            shake_y = random.randint(-3, 3)
+            scale = 1.0 + 0.05 * math.sin(self.frame_counter * 0.8)
+            painter.translate(shake_x, shake_y)
+            painter.rotate(angle)
+            painter.scale(scale, scale)
 
         painter.translate(-size.width() / 2, -size.height() / 2)
 
