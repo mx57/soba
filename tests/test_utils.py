@@ -516,5 +516,55 @@ class TestUtils(unittest.TestCase):
             QMessageBox.information = original_information
             db.close()
 
+    def test_pet_size_configuration_and_scaling(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Default config value
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Window initialization with config value
+        config.set("pet_size", 150)
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(window.original_size.height(), 150)
+        self.assertEqual(window.width(), 150)
+
+        # 3. Dynamic resizing via set_pet_size
+        window.set_pet_size(200)
+        self.assertEqual(window.original_size.width(), 200)
+        self.assertEqual(window.width(), 200)
+        self.assertEqual(config.get("pet_size"), 200)
+
+        # 4. InputManager dynamic petting radius scaling test
+        mock_window = MagicMock()
+        mock_window.width.return_value = 200
+        mock_window.height.return_value = 200
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+        mock_window.animation_manager.current_state = "idle"
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Mouse outside dynamic radius
+        im.handle_mouse(350, 350)
+        self.assertEqual(im.last_pet_time, 0)
+
+        # Mouse inside dynamic radius
+        im.handle_mouse(250, 250)
+        self.assertNotEqual(im.last_pet_time, 0)
+
+        db.close()
+
 if __name__ == '__main__':
     unittest.main()
