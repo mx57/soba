@@ -44,9 +44,12 @@ class PetWindow(QMainWindow):
         self.animation_manager = AnimationManager(self.pet_label, self.config)
         self.animation_manager.play_state("idle")
 
-        # Применяем прозрачность из конфига
+        # Применяем прозрачность и размер из конфига
         if self.config:
             self.set_opacity(self.config.get("opacity"))
+            pet_size = self.config.get("pet_size")
+        else:
+            pet_size = 100
 
         self.last_state_before_drag = "idle"
 
@@ -55,7 +58,7 @@ class PetWindow(QMainWindow):
         self.is_dragging = False
         self.shake_count = 0
         self.last_shake_time = 0
-        self.original_size = QSize(100, 100)
+        self.original_size = QSize(pet_size, pet_size)
 
         # Начальный размер
         self.resize(self.original_size)
@@ -90,6 +93,14 @@ class PetWindow(QMainWindow):
     def set_opacity(self, value):
         """Устанавливает прозрачность окна (0-100)"""
         self.setWindowOpacity(value / 100.0)
+
+    def set_pet_size(self, size_px):
+        """Динамически изменяет базовый размер питомца в пикселях."""
+        if self.config:
+            self.config.set("pet_size", size_px)
+        self.original_size = QSize(size_px, size_px)
+        self.resize(self.original_size)
+        self.animation_manager.update_size(self.size())
 
     def set_always_on_top(self, enabled):
         """Включает или выключает режим 'Поверх всех окон' динамически"""
