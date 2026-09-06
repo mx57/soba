@@ -201,16 +201,55 @@ class TestUtils(unittest.TestCase):
         db = DataStore(self.db_path)
         im = InputManager(mock_window, db)
 
+        # Мок для подписки на сигнал
+        signal_mock = MagicMock()
+        im.laser_mode_changed.connect(signal_mock)
+
         # Переключаем лазер в True
         im.toggle_laser_mode()
         self.assertTrue(im.laser_mode)
         mock_window.animation_manager.play_state.assert_called_with("hunting")
         mock_window.setCursor.assert_called()
+        signal_mock.assert_called_with(True)
 
-        # Переключаем обратно в False
-        im.toggle_laser_mode()
+        # Переключаем обратно в False со значением
+        im.toggle_laser_mode(False)
         self.assertFalse(im.laser_mode)
         mock_window.animation_manager.play_state.assert_called_with("idle")
+        signal_mock.assert_called_with(False)
+
+        db.close()
+
+    def test_tray_menu_laser_mode_sync(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.tray_menu import TrayMenu
+
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        window = PetWindow(config)
+
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+        window.input_manager = im
+
+        tray = TrayMenu(window)
+
+        # Первоначальное состояние пункта меню
+        self.assertFalse(tray.laser_action.isChecked())
+
+        # Изменяем состояние через InputManager
+        im.toggle_laser_mode(True)
+
+        # Проверяем, что галочка в меню автоматически установилась в True по сигналу
+        self.assertTrue(tray.laser_action.isChecked())
+
+        # Отключаем через InputManager
+        im.toggle_laser_mode(False)
+
+        # Проверяем, что галочка снялась
+        self.assertFalse(tray.laser_action.isChecked())
 
         db.close()
 
