@@ -42,6 +42,10 @@ def main():
 
     tray = TrayMenu(window)
 
+    # Подписка на сигналы синхронизации UI
+    if window.input_manager and hasattr(tray, 'laser_action'):
+        window.input_manager.laser_mode_changed.connect(tray.laser_action.setChecked)
+
     # Cleanup on close
     window.closed.connect(input_manager.flush_all)
     window.closed.connect(lambda: input_manager.monitor.stop())

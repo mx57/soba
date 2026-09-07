@@ -481,6 +481,48 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_pet_size_setting_and_window_resize(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QSize
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        config.set("pet_size", 150)
+
+        window = PetWindow(config)
+        self.assertEqual(window.original_size, QSize(150, 150))
+        self.assertEqual(window.size(), QSize(150, 150))
+
+        # Динамическое изменение через set_pet_size
+        window.set_pet_size(200)
+        self.assertEqual(window.original_size, QSize(200, 200))
+        self.assertEqual(window.size(), QSize(200, 200))
+        self.assertEqual(config.get("pet_size"), 200)
+
+    def test_laser_mode_changed_signal(self):
+        mock_window = MagicMock()
+        mock_window.animation_manager.current_state = "idle"
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        signal_received = []
+        im.laser_mode_changed.connect(lambda state: signal_received.append(state))
+
+        # Переключение в ВКЛ
+        im.toggle_laser_mode()
+        self.assertEqual(signal_received, [True])
+
+        # Переключение в ВЫКЛ
+        im.toggle_laser_mode()
+        self.assertEqual(signal_received, [True, False])
+
+        db.close()
+
     def test_stats_dialog_reset_ui_flow(self):
         from src.ui.stats_dialog import StatsDialog
         from PySide6.QtWidgets import QMessageBox, QApplication
