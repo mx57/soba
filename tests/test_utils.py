@@ -58,6 +58,8 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
 
+        window.close()
+
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
         config.set("username", "TestUser")
@@ -306,6 +308,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(anim_mgr.skin, "custom_test_skin")
         self.assertTrue(anim_mgr.current_anim_path.endswith("cat_custom_test_skin.svg"))
 
+        label.close()
         # Очистка
         if os.path.exists(test_svg_path):
             os.remove(test_svg_path)
@@ -356,6 +359,8 @@ class TestUtils(unittest.TestCase):
             self.assertNotIn("custom_todel_skin", CAT_SKINS)
             self.assertEqual(config.get("skin"), "default")
             self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
+
+            dialog.close()
         finally:
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
@@ -411,6 +416,8 @@ class TestUtils(unittest.TestCase):
         # Тест кастомного FPS
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
+
+        label.close()
 
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
@@ -514,7 +521,75 @@ class TestUtils(unittest.TestCase):
         finally:
             QMessageBox.question = original_question
             QMessageBox.information = original_information
+            dialog.close()
             db.close()
+
+    def test_pet_size_logic(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.settings_dialog import SettingsDialog
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Проверяем дефолтный размер
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Инициализация PetWindow
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 100)
+        self.assertEqual(window.original_size.height(), 100)
+
+        # 3. Динамическая смена размера через set_pet_size
+        window.set_pet_size(180)
+        self.assertEqual(window.original_size.width(), 180)
+        self.assertEqual(window.original_size.height(), 180)
+
+        # 4. Проверяем настройку в SettingsDialog
+        dialog = SettingsDialog(config)
+        self.assertEqual(dialog.pet_size_slider.value(), 100)
+        dialog.pet_size_slider.setValue(150)
+        dialog.save_settings()
+        self.assertEqual(config.get("pet_size"), 150)
+
+        dialog.close()
+        window.close()
+
+    def test_laser_mode_signal_sync(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.tray_menu import TrayMenu
+
+        app = QApplication.instance() or QApplication([])
+        config = ConfigManager(self.config_path)
+        window = PetWindow(config)
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+        window.input_manager = im
+
+        # Создаем TrayMenu с привязанным InputManager
+        tray = TrayMenu(window)
+
+        # Передаем сигнал для отслеживания
+        signal_mock = MagicMock()
+        im.laser_mode_changed.connect(signal_mock)
+
+        # Изначально выключен
+        self.assertFalse(tray.laser_action.isChecked())
+
+        # Включаем лазерный режим
+        im.toggle_laser_mode()
+        signal_mock.assert_called_with(True)
+        self.assertTrue(tray.laser_action.isChecked())
+
+        # Выключаем лазерный режим
+        im.toggle_laser_mode()
+        signal_mock.assert_called_with(False)
+        self.assertFalse(tray.laser_action.isChecked())
+
+        im.watchdog.stop()
+        window.close()
+        db.close()
 
 if __name__ == '__main__':
     unittest.main()
