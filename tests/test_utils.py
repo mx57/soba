@@ -57,6 +57,67 @@ class TestUtils(unittest.TestCase):
         flags = window.windowFlags()
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
+        window.close()
+
+    def test_pet_size_logic(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        config.set("pet_size", 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        window = PetWindow(config)
+        self.assertEqual(window.width(), 150)
+        self.assertEqual(window.height(), 150)
+
+        # Динамическая смена размера через set_pet_size
+        window.set_pet_size(200)
+        self.assertEqual(window.width(), 200)
+        self.assertEqual(window.height(), 200)
+        self.assertEqual(window.original_size.width(), 200)
+        window.close()
+
+    def test_laser_mode_signal_and_dynamic_pet_radius(self):
+        mock_window = MagicMock()
+        mock_window.width.return_value = 150
+        mock_window.height.return_value = 150
+
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+        mock_window.animation_manager.current_state = "idle"
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Проверка сигнала laser_mode_changed
+        signal_received = []
+        im.laser_mode_changed.connect(lambda val: signal_received.append(val))
+
+        im.toggle_laser_mode()
+        self.assertEqual(len(signal_received), 1)
+        self.assertTrue(signal_received[0])
+
+        im.toggle_laser_mode()
+        self.assertEqual(len(signal_received), 2)
+        self.assertFalse(signal_received[1])
+
+        # Проверка динамического радиуса поглаживания (для размера 150x150 -> радиус 90px, т.е. порог 8100)
+        # Центр котика (100 + 75, 100 + 75) = (175, 175)
+        im.handle_mouse(175, 175) # установка начальной точки
+        im.last_pet_time -= 1.0
+        # Движение до (250, 175) -> расстояние от центра dx=75, dy=0 -> dist_sq = 5625 < 8100 (внутри зоны)
+        im.handle_mouse(250, 175)
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
 
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
@@ -306,6 +367,8 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(anim_mgr.skin, "custom_test_skin")
         self.assertTrue(anim_mgr.current_anim_path.endswith("cat_custom_test_skin.svg"))
 
+        anim_mgr.anim_timer.stop()
+
         # Очистка
         if os.path.exists(test_svg_path):
             os.remove(test_svg_path)
@@ -411,6 +474,7 @@ class TestUtils(unittest.TestCase):
         # Тест кастомного FPS
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
+        am.anim_timer.stop()
 
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
