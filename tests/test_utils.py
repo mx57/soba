@@ -58,6 +58,8 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
 
+        window.close()
+
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
         config.set("username", "TestUser")
@@ -201,18 +203,57 @@ class TestUtils(unittest.TestCase):
         db = DataStore(self.db_path)
         im = InputManager(mock_window, db)
 
+        # Подключаем проверку сигнала laser_mode_changed
+        signal_received = []
+        im.laser_mode_changed.connect(lambda val: signal_received.append(val))
+
         # Переключаем лазер в True
         im.toggle_laser_mode()
         self.assertTrue(im.laser_mode)
+        self.assertEqual(signal_received, [True])
         mock_window.animation_manager.play_state.assert_called_with("hunting")
         mock_window.setCursor.assert_called()
 
         # Переключаем обратно в False
         im.toggle_laser_mode()
         self.assertFalse(im.laser_mode)
+        self.assertEqual(signal_received, [True, False])
         mock_window.animation_manager.play_state.assert_called_with("idle")
 
         db.close()
+
+    def test_procedural_svg_playing_and_shaking(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from src.core.animation_manager import AnimationManager
+        from PySide6.QtCore import QSize
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        label.resize(QSize(100, 100))
+
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Настраиваем фиктивный svg_renderer
+        mock_svg = MagicMock()
+        am.svg_renderer = mock_svg
+
+        # Тест для состояния playing
+        am.current_state = "playing"
+        am.update_frame()
+        self.assertEqual(am.frame_counter, 1)
+        mock_svg.render.assert_called()
+
+        # Тест для состояния shaking
+        mock_svg.reset_mock()
+        am.current_state = "shaking"
+        am.update_frame()
+        self.assertEqual(am.frame_counter, 2)
+        mock_svg.render.assert_called()
+
+        am.anim_timer.stop()
+        label.close()
 
     def test_force_state_delays_idle(self):
         mock_window = MagicMock()
@@ -306,6 +347,9 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(anim_mgr.skin, "custom_test_skin")
         self.assertTrue(anim_mgr.current_anim_path.endswith("cat_custom_test_skin.svg"))
 
+        anim_mgr.anim_timer.stop()
+        label.close()
+
         # Очистка
         if os.path.exists(test_svg_path):
             os.remove(test_svg_path)
@@ -356,6 +400,8 @@ class TestUtils(unittest.TestCase):
             self.assertNotIn("custom_todel_skin", CAT_SKINS)
             self.assertEqual(config.get("skin"), "default")
             self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
+
+            dialog.close()
         finally:
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
@@ -411,6 +457,9 @@ class TestUtils(unittest.TestCase):
         # Тест кастомного FPS
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
+
+        am.anim_timer.stop()
+        label.close()
 
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
@@ -514,6 +563,8 @@ class TestUtils(unittest.TestCase):
         finally:
             QMessageBox.question = original_question
             QMessageBox.information = original_information
+            dialog.update_timer.stop()
+            dialog.close()
             db.close()
 
 if __name__ == '__main__':
