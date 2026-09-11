@@ -57,6 +57,7 @@ class TestUtils(unittest.TestCase):
         flags = window.windowFlags()
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
+        window.close()
 
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
@@ -360,6 +361,7 @@ class TestUtils(unittest.TestCase):
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
             QMessageBox.information = original_information
+            dialog.close()
 
     def test_sound_manager_volume_override(self):
         from src.utils.sound_manager import SoundManager
@@ -481,6 +483,95 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_laser_mode_changed_signal_and_tray_sync(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.tray_menu import TrayMenu
+
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        window = PetWindow(config)
+
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+        window.input_manager = im
+
+        tray = TrayMenu(window)
+
+        # Сигнал от InputManager подключен к tray.laser_action.setChecked
+        self.assertFalse(tray.laser_action.isChecked())
+
+        im.toggle_laser_mode(True)
+        self.assertTrue(im.laser_mode)
+        self.assertTrue(tray.laser_action.isChecked())
+
+        im.toggle_laser_mode(False)
+        self.assertFalse(im.laser_mode)
+        self.assertFalse(tray.laser_action.isChecked())
+
+        tray.tray_icon.hide()
+        tray.tray_icon.deleteLater()
+        window.close()
+        db.close()
+
+    def test_pet_size_configuration_and_scaling(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.settings_dialog import SettingsDialog
+
+        app = QApplication.instance() or QApplication([])
+
+        # 1. Проверка дефолтного значения в конфиге
+        config = ConfigManager(self.config_path)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Инициализация PetWindow
+        window = PetWindow(config)
+        self.assertEqual(window.width(), 100)
+        self.assertEqual(window.height(), 100)
+
+        # 3. Изменение размера через set_pet_size
+        window.set_pet_size(150)
+        self.assertEqual(window.width(), 150)
+        self.assertEqual(window.height(), 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        # 4. Проверка диалога настроек
+        dialog = SettingsDialog(config)
+        self.assertEqual(dialog.pet_size_slider.value(), 150)
+        dialog.pet_size_slider.setValue(200)
+        dialog.save_settings()
+        self.assertEqual(config.get("pet_size"), 200)
+        dialog.close()
+
+        # 5. Проверка динамического радиуса поглаживания в InputManager
+        db = DataStore(self.db_path)
+        mock_window = MagicMock()
+        mock_window.config = config
+        mock_window.width.return_value = 200
+        mock_window.height.return_value = 200
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+        mock_window.animation_manager.current_state = "idle"
+
+        im = InputManager(mock_window, db)
+
+        # При pet_size = 200 радиус = 60 * 2 = 120px
+        # Движение мыши на расстоянии 110px от центра (200, 200) -> точка (200, 90)
+        im.handle_mouse(200, 90)
+        im.last_pet_time -= 1.0 # сбрасываем кулдаун
+        im.handle_mouse(200, 145) # сдвиг на 55px (больше 30px мазок)
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+        window.close()
+
     def test_stats_dialog_reset_ui_flow(self):
         from src.ui.stats_dialog import StatsDialog
         from PySide6.QtWidgets import QMessageBox, QApplication
@@ -514,6 +605,8 @@ class TestUtils(unittest.TestCase):
         finally:
             QMessageBox.question = original_question
             QMessageBox.information = original_information
+            dialog.update_timer.stop()
+            dialog.close()
             db.close()
 
 if __name__ == '__main__':

@@ -44,6 +44,8 @@ class InputMonitor(QThread):
             self.keyboard_listener.stop()
 
 class InputManager(QObject):
+    laser_mode_changed = Signal(bool)
+
     def __init__(self, pet_window, data_store=None):
         super().__init__()
         self.window = pet_window
@@ -410,8 +412,17 @@ class InputManager(QObject):
         dy_pet = y - center_y
         dist_sq_pet = dx_pet * dx_pet + dy_pet * dy_pet
 
-        # Оптимизация: сравнение квадрата расстояния (порог 60px -> 3600)
-        if dist_sq_pet < 3600:
+        # Динамический радиус поглаживания в зависимости от pet_size (порог по умолчанию 60px -> 3600 при размерности 100)
+        pet_size = 100
+        if self.window and hasattr(self.window, "config") and self.window.config:
+            val = self.window.config.get("pet_size")
+            if isinstance(val, (int, float)):
+                pet_size = val
+
+        pet_radius = int(60 * (pet_size / 100.0))
+        pet_radius_sq = pet_radius * pet_radius
+
+        if dist_sq_pet < pet_radius_sq:
             # Исключаем пассивный фарм (требуем активное поглаживание: активное движение мыши и кулдаун)
             if self.last_pet_time == 0:
                 self.last_pet_mouse_pos = (x, y)
@@ -440,8 +451,12 @@ class InputManager(QObject):
             # Сброс начальной точки поглаживания при выходе за пределы питомца
             self.last_pet_time = 0
 
-    def toggle_laser_mode(self):
-        self.laser_mode = not self.laser_mode
+    def toggle_laser_mode(self, enabled=None):
+        if enabled is not None:
+            self.laser_mode = bool(enabled)
+        else:
+            self.laser_mode = not self.laser_mode
+
         if self.laser_mode:
             self.window.animation_manager.play_state("hunting")
             # Создаем красивый светящийся красный лазерный курсор
@@ -470,6 +485,8 @@ class InputManager(QObject):
         else:
             self.window.setCursor(Qt.ArrowCursor)
             self.window.animation_manager.play_state("idle")
+
+        self.laser_mode_changed.emit(self.laser_mode)
         return self.laser_mode
 
     def reset_all_data(self):
