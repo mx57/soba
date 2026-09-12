@@ -44,6 +44,8 @@ class InputMonitor(QThread):
             self.keyboard_listener.stop()
 
 class InputManager(QObject):
+    laser_mode_changed = Signal(bool)
+
     def __init__(self, pet_window, data_store=None):
         super().__init__()
         self.window = pet_window
@@ -470,6 +472,8 @@ class InputManager(QObject):
         else:
             self.window.setCursor(Qt.ArrowCursor)
             self.window.animation_manager.play_state("idle")
+
+        self.laser_mode_changed.emit(self.laser_mode)
         return self.laser_mode
 
     def reset_all_data(self):
