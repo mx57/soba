@@ -201,18 +201,75 @@ class TestUtils(unittest.TestCase):
         db = DataStore(self.db_path)
         im = InputManager(mock_window, db)
 
+        # Проверка отслеживания сигнала laser_mode_changed
+        signal_emitted = []
+        im.laser_mode_changed.connect(lambda val: signal_emitted.append(val))
+
         # Переключаем лазер в True
         im.toggle_laser_mode()
         self.assertTrue(im.laser_mode)
+        self.assertEqual(signal_emitted, [True])
         mock_window.animation_manager.play_state.assert_called_with("hunting")
         mock_window.setCursor.assert_called()
 
         # Переключаем обратно в False
         im.toggle_laser_mode()
         self.assertFalse(im.laser_mode)
+        self.assertEqual(signal_emitted, [True, False])
         mock_window.animation_manager.play_state.assert_called_with("idle")
 
         db.close()
+
+    def test_tray_menu_laser_mode_sync(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.tray_menu import TrayMenu
+
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        window = PetWindow(config)
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+        window.input_manager = im
+
+        tray = TrayMenu(window)
+        self.assertFalse(tray.laser_action.isChecked())
+
+        # Toggle laser mode via InputManager
+        im.toggle_laser_mode()
+        self.assertTrue(tray.laser_action.isChecked())
+
+        im.toggle_laser_mode()
+        self.assertFalse(tray.laser_action.isChecked())
+
+        db.close()
+
+    def test_animation_manager_playing_shaking_svg(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from src.core.animation_manager import AnimationManager
+        from PySide6.QtSvg import QSvgRenderer
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        label.resize(100, 100)
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Проверка состояния "playing"
+        am.play_state("playing")
+        am.svg_renderer = MagicMock(spec=QSvgRenderer)
+        self.assertEqual(am.current_state, "playing")
+        am.update_frame()
+        am.svg_renderer.render.assert_called()
+
+        # Проверка состояния "shaking"
+        am.play_state("shaking")
+        am.svg_renderer = MagicMock(spec=QSvgRenderer)
+        self.assertEqual(am.current_state, "shaking")
+        am.update_frame()
+        am.svg_renderer.render.assert_called()
 
     def test_force_state_delays_idle(self):
         mock_window = MagicMock()
