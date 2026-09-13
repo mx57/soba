@@ -58,6 +58,32 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
 
+    def test_pet_size_logic(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Проверяем дефолтный размер
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Инициализация окна с кастомным размером в конфиге
+        config.set("pet_size", 120)
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 120)
+        self.assertEqual(window.original_size.height(), 120)
+        self.assertEqual(window.width(), 120)
+        self.assertEqual(window.height(), 120)
+
+        # 3. Динамическое изменение размера окна
+        window.set_pet_size(180)
+        self.assertEqual(window.original_size.width(), 180)
+        self.assertEqual(window.original_size.height(), 180)
+        self.assertEqual(window.width(), 180)
+        self.assertEqual(window.height(), 180)
+        self.assertEqual(config.get("pet_size"), 180)
+
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
         config.set("username", "TestUser")
