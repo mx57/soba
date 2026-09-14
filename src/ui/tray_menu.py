@@ -59,10 +59,13 @@ class TrayMenu(QObject):
         self.menu.addSeparator()
 
         # Лазерная указка
-        laser_action = QAction("Лазерная указка 🔴", self)
-        laser_action.setCheckable(True)
-        laser_action.triggered.connect(self.toggle_laser)
-        self.menu.addAction(laser_action)
+        self.laser_action = QAction("Лазерная указка 🔴", self)
+        self.laser_action.setCheckable(True)
+        self.laser_action.triggered.connect(self.toggle_laser)
+        self.menu.addAction(self.laser_action)
+
+        if self.window.input_manager:
+            self.window.input_manager.laser_mode_changed.connect(self.laser_action.setChecked)
 
         self.menu.addSeparator()
 

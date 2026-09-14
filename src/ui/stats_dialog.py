@@ -240,7 +240,10 @@ class StatsDialog(QDialog):
                 elif stat_name == 'max_kps':
                     current_val = max_kps
                 else:
-                    current_val = self.db.get_stat(stat_name) + (im.pending_stats.get(stat_name, 0) if im else 0)
+                    if im:
+                        current_val = im.stats_cache.get(stat_name, 0) + im.pending_stats.get(stat_name, 0)
+                    else:
+                        current_val = self.db.get_stat(stat_name)
 
             # Текст с прогрессом
             progress_text = ""

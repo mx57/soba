@@ -44,6 +44,8 @@ class InputMonitor(QThread):
             self.keyboard_listener.stop()
 
 class InputManager(QObject):
+    laser_mode_changed = Signal(bool)
+
     def __init__(self, pet_window, data_store=None):
         super().__init__()
         self.window = pet_window
@@ -57,6 +59,7 @@ class InputManager(QObject):
         self.overheat_threshold = 12 # KPS для режима перегрева
 
         self.last_mouse_time = 0
+        self.slow_mouse_start_time = None
         cursor_pos = self.window.cursor().pos() if self.window else None
         self.last_mouse_pos = (cursor_pos.x(), cursor_pos.y()) if cursor_pos else (0, 0)
         self.last_input_time = time.time()
@@ -388,16 +391,21 @@ class InputManager(QObject):
             # Если мышь движется быстро и форсированное состояние не активно, активируем охоту
             if self.forced_state_name is None or now >= self.forced_state_expires:
                 # Если мышь движется быстро, активируем охоту (1500 px/sec)
-                # speed > 1500  =>  sqrt(dist_sq)/dt > 1500  =>  dist_sq > (1500 * dt)**2
                 threshold_fast = 1500 * dt
                 if dist_sq > threshold_fast * threshold_fast:
+                    self.slow_mouse_start_time = None
                     if self.window.animation_manager.current_state != "hunting":
                         self.window.animation_manager.play_state("hunting")
                         self.window.start_hunting(x, y)
                 elif dist_sq < (100 * dt) * (100 * dt):
-                    # Если мышь замерла (speed < 100 px/sec), выходим из охоты через пару секунд
-                    if self.window.animation_manager.current_state == "hunting" and (now - self.last_mouse_time) > 2:
-                        self.window.animation_manager.play_state("idle")
+                    # Если мышь замерла (speed < 100 px/sec), отслеживаем время неактивности
+                    if self.slow_mouse_start_time is None:
+                        self.slow_mouse_start_time = now
+                    elif now - self.slow_mouse_start_time >= 2.0:
+                        if self.window.animation_manager.current_state == "hunting" and not self.laser_mode:
+                            self.window.animation_manager.play_state("idle")
+                else:
+                    self.slow_mouse_start_time = None
 
         self.last_mouse_pos = (x, y)
         self.last_mouse_time = now
@@ -470,6 +478,7 @@ class InputManager(QObject):
         else:
             self.window.setCursor(Qt.ArrowCursor)
             self.window.animation_manager.play_state("idle")
+        self.laser_mode_changed.emit(self.laser_mode)
         return self.laser_mode
 
     def reset_all_data(self):

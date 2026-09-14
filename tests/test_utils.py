@@ -201,6 +201,9 @@ class TestUtils(unittest.TestCase):
         db = DataStore(self.db_path)
         im = InputManager(mock_window, db)
 
+        signal_received = []
+        im.laser_mode_changed.connect(lambda val: signal_received.append(val))
+
         # Переключаем лазер в True
         im.toggle_laser_mode()
         self.assertTrue(im.laser_mode)
@@ -210,6 +213,45 @@ class TestUtils(unittest.TestCase):
         # Переключаем обратно в False
         im.toggle_laser_mode()
         self.assertFalse(im.laser_mode)
+        mock_window.animation_manager.play_state.assert_called_with("idle")
+
+        self.assertEqual(signal_received, [True, False])
+
+        db.close()
+
+    def test_slow_mouse_exits_hunting_state(self):
+        mock_window = MagicMock()
+        mock_window.width.return_value = 100
+        mock_window.height.return_value = 100
+
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+        mock_window.animation_manager.current_state = "hunting"
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # 1. Мышь движется медленно (< 100px/sec)
+        now = time.time()
+        im.last_mouse_time = now - 0.1
+        im.last_mouse_pos = (100, 100)
+
+        # Движение всего на 1px за 0.1с => 10px/sec
+        im.handle_mouse(101, 101)
+
+        self.assertIsNotNone(im.slow_mouse_start_time)
+
+        # 2. По истечении 2.0 секунд медленного движения котик должен вернуться в idle
+        im.slow_mouse_start_time = now - 2.1
+        im.last_mouse_time = now - 0.1
+        im.handle_mouse(102, 102)
+
         mock_window.animation_manager.play_state.assert_called_with("idle")
 
         db.close()
