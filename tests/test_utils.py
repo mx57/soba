@@ -481,6 +481,70 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_pet_size_scaling(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 100)
+        self.assertEqual(window.original_size.height(), 100)
+
+        # Динамическая смена размера через set_pet_size
+        window.set_pet_size(180)
+        self.assertEqual(window.original_size.width(), 180)
+        self.assertEqual(window.original_size.height(), 180)
+        self.assertEqual(config.get("pet_size"), 180)
+
+        # Проверка радиуса поглаживания в InputManager
+        mock_window = MagicMock()
+        mock_window.width.return_value = 200
+        mock_window.height.return_value = 200
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        # Центр котика (100+100, 100+100) = (200, 200)
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        mock_window.get_cached_pos.return_value = mock_pos
+
+        # Поглаживание в пределах масштабированного радиуса (200 * 0.6 = 120px)
+        # Позиция (200, 290) - расстояние 90px от центра, что меньше 120px
+        im.handle_mouse(200, 200)
+        im.last_pet_time -= 1.0
+        im.handle_mouse(200, 250) # Сдвиг на 50px
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+
+    def test_laser_mode_signal(self):
+        mock_window = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        signal_received = []
+        im.laser_mode_changed.connect(lambda state: signal_received.append(state))
+
+        im.toggle_laser_mode()
+        self.assertEqual(signal_received, [True])
+
+        im.toggle_laser_mode()
+        self.assertEqual(signal_received, [True, False])
+
+        db.close()
+
     def test_stats_dialog_reset_ui_flow(self):
         from src.ui.stats_dialog import StatsDialog
         from PySide6.QtWidgets import QMessageBox, QApplication
