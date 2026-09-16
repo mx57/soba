@@ -25,10 +25,13 @@ class TrayMenu(QObject):
         self.tray_icon.setContextMenu(self.menu)
         self.tray_icon.show()
 
-        # Подписка на сигналы таймера для обновления статуса
+        # Подписка на сигналы таймера и ввода для обновления статуса и элементов UI
         if self.window.timer_system:
             self.window.timer_system.pomodoro_tick.connect(self.update_pomodoro_status)
             self.window.timer_system.pomodoro_finished.connect(self.on_pomodoro_finished)
+
+        if hasattr(self.window, "input_manager") and self.window.input_manager:
+            self.window.input_manager.laser_mode_changed.connect(self.on_laser_mode_changed)
 
     def setup_menu(self):
         # 1. Секция статуса Pomodoro
@@ -59,10 +62,10 @@ class TrayMenu(QObject):
         self.menu.addSeparator()
 
         # Лазерная указка
-        laser_action = QAction("Лазерная указка 🔴", self)
-        laser_action.setCheckable(True)
-        laser_action.triggered.connect(self.toggle_laser)
-        self.menu.addAction(laser_action)
+        self.laser_action = QAction("Лазерная указка 🔴", self)
+        self.laser_action.setCheckable(True)
+        self.laser_action.triggered.connect(self.toggle_laser)
+        self.menu.addAction(self.laser_action)
 
         self.menu.addSeparator()
 
@@ -229,6 +232,10 @@ class TrayMenu(QObject):
         else:
             self.window.animation_manager.play_state("eating")
             self.window.show_message("Мням! +5 ❤️")
+
+    def on_laser_mode_changed(self, is_active):
+        if hasattr(self, 'laser_action'):
+            self.laser_action.setChecked(is_active)
 
     def toggle_laser(self, checked):
         if self.window.input_manager:
