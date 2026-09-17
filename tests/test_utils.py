@@ -412,6 +412,32 @@ class TestUtils(unittest.TestCase):
         am.current_fps = 15
         self.assertEqual(am.current_fps, 15)
 
+    def test_animation_manager_playing_shaking_transformations(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from PySide6.QtCore import QSize
+        from PySide6.QtSvg import QSvgRenderer
+        from src.core.animation_manager import AnimationManager
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        label.resize(QSize(100, 100))
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Подготавливаем renderer с простым SVG
+        am.svg_renderer = QSvgRenderer(b"<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100'/></svg>")
+
+        # Проверяем исполнение update_frame для 'playing'
+        am.play_state("playing")
+        am.update_frame()
+        self.assertIsNotNone(label.pixmap())
+
+        # Проверяем исполнение update_frame для 'shaking'
+        am.play_state("shaking")
+        am.update_frame()
+        self.assertIsNotNone(label.pixmap())
+
     def test_sound_manager_fallback(self):
         from src.utils.sound_manager import SoundManager
         from PySide6.QtMultimedia import QSoundEffect
