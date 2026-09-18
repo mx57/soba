@@ -63,9 +63,52 @@ class TestUtils(unittest.TestCase):
         config.set("username", "TestUser")
         self.assertEqual(config.get("username"), "TestUser")
 
+        # Проверка дефолтного pet_size и сохранения нового значения
+        self.assertEqual(config.get("pet_size"), 100)
+        config.set("pet_size", 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
         with open(self.config_path, 'r') as f:
             data = json.load(f)
             self.assertEqual(data["username"], "TestUser")
+            self.assertEqual(data["pet_size"], 150)
+
+    def test_pet_size_window_and_input(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        config.set("pet_size", 120)
+
+        # 1. Проверяем, что окно инициализируется с заданным pet_size
+        window = PetWindow(config)
+        self.assertEqual(window.width(), 120)
+        self.assertEqual(window.height(), 120)
+
+        # 2. Изменяем размер через set_pet_size
+        window.set_pet_size(180)
+        self.assertEqual(window.width(), 180)
+        self.assertEqual(window.height(), 180)
+        self.assertEqual(config.get("pet_size"), 180)
+
+        # 3. Проверяем, что радиус поглаживания в InputManager масштабируется
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+
+        # Устанавливаем позицию питомца в (100, 100), центр окна при размере 180x180 находится в (190, 190)
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 100
+        mock_pos.y.return_value = 100
+        window.get_cached_pos = MagicMock(return_value=mock_pos)
+
+        # Подаем клик/движение мыши на расстоянии 80px от центра (270, 190)
+        # При старом фиксированном радиусе 60px (3600) это не сработало бы (80^2 = 6400).
+        # Но при размере окна 180px радиус поглаживания = 180 * 0.6 = 108px (108^2 = 11664), поэтому точка попадает вовнутрь!
+        im.handle_mouse(270, 190)
+        self.assertNotEqual(im.last_pet_time, 0)
+
+        db.close()
 
     def test_data_store(self):
         db = DataStore(self.db_path)
