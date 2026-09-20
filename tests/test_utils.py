@@ -188,6 +188,69 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_pet_size_and_dynamic_petting_radius(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+
+        # 1. Дефолтный размер
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # 2. Установка через PetWindow.set_pet_size
+        window = PetWindow(config)
+        self.assertEqual(window.width(), 100)
+
+        window.set_pet_size(150)
+        self.assertEqual(window.width(), 150)
+        self.assertEqual(window.height(), 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        # 3. Динамический радиус поглаживания в InputManager
+        db = DataStore(self.db_path)
+        im = InputManager(window, db)
+
+        # В начале устанавливаем позицию курсора над центром (центр: 75, 75 при кастомной позиции окна 0, 0)
+        # При ширине 150px радиус должен составлять max(30, int(60 * 1.5)) = 90px
+        # Позиция 75 + 80 = 155 по x -> смещение от центра 80px (< 90px, входит в радиус)
+        mock_pos = MagicMock()
+        mock_pos.x.return_value = 0
+        mock_pos.y.return_value = 0
+        window.get_cached_pos = MagicMock(return_value=mock_pos)
+
+        im.handle_mouse(75, 75)
+        self.assertEqual(im.pending_stats["petting_count"], 0)
+
+        # Поглаживание внутри радиуса (с эмуляцией нормальной скорости движения мыши)
+        im.last_pet_time -= 1.0
+        im.last_mouse_time -= 1.0
+        im.handle_mouse(150, 75) # Смещение на 75px от центра (входит в радиус 90px)
+        self.assertEqual(im.pending_stats["petting_count"], 1)
+
+        db.close()
+
+    def test_laser_mode_signal_emission(self):
+        mock_window = MagicMock()
+        mock_window.animation_manager.current_state = "idle"
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        signal_received = []
+        im.laser_mode_changed.connect(lambda active: signal_received.append(active))
+
+        im.toggle_laser_mode()
+        self.assertEqual(signal_received, [True])
+
+        im.toggle_laser_mode()
+        self.assertEqual(signal_received, [True, False])
+
+        db.close()
+
     def test_laser_mode_transitions(self):
         # Мокаем PetWindow и AnimationManager
         mock_window = MagicMock()

@@ -41,6 +41,7 @@ def main():
     timer_system.pomodoro_finished.connect(input_manager.on_pomodoro_finished)
 
     tray = TrayMenu(window)
+    input_manager.laser_mode_changed.connect(tray.laser_action.setChecked)
 
     # Cleanup on close
     window.closed.connect(input_manager.flush_all)
