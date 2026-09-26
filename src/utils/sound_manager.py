@@ -7,10 +7,13 @@ class SoundManager:
         self.config = config
         self.sounds = {}
 
-    def play_sound(self, sound_name):
+    def play_sound(self, sound_name, volume=None):
         if sound_name not in self.sounds:
             path = f"assets/sounds/{sound_name}.wav"
             if not os.path.exists(path):
+                # Если звук отсутствует, пробуем использовать стандартное мяуканье 'meow' в качестве резерва
+                if sound_name != "meow":
+                    self.play_sound("meow", volume)
                 return
 
             effect = QSoundEffect()
@@ -18,5 +21,7 @@ class SoundManager:
             self.sounds[sound_name] = effect
 
         effect = self.sounds[sound_name]
-        effect.setVolume(self.config.get("volume") / 100.0)
+        if volume is None:
+            volume = self.config.get("volume") if self.config else 70
+        effect.setVolume(volume / 100.0)
         effect.play()

@@ -19,26 +19,34 @@ class AnimationManager:
         self.current_anim_path = None
         self.pet_type = "cat"
         self.skin = config.get("skin") if config else "default"
-        self.last_mouse_pos = (0, 0)
+        cursor_pos = self.label.cursor().pos() if self.label else None
+        self.last_mouse_pos = (cursor_pos.x(), cursor_pos.y()) if cursor_pos else (0, 0)
         self.cached_pixmap = None
         self.last_size = QSize(0, 0)
         self.main_window = self.label.window()
+        self._current_fps = 12
 
         # Таймер для процедурной SVG анимации
         self.anim_timer = QTimer()
         self.anim_timer.timeout.connect(self.update_frame)
         self.frame_counter = 0
 
+    @property
+    def current_fps(self):
+        """Возвращает текущую заданную частоту кадров (FPS)."""
+        return self._current_fps
+
+    @current_fps.setter
+    def current_fps(self, value):
+        """Устанавливает текущую заданную частоту кадров (FPS)."""
+        self._current_fps = value
+
     def set_animation(self, path):
         # Оптимизация: не перезагружаем ту же самую анимацию
         if self.current_anim_path == path:
             if path.endswith(".svg") and self.svg_renderer:
                 # Обновляем интервал даже если путь тот же (для динамического FPS)
-                interval = 83
-                if self.current_state == "sleeping":
-                    interval = 250
-                elif self.current_state in ["overheat", "shaking"]:
-                    interval = 50
+                interval = int(1000 / self.current_fps)
                 self.anim_timer.start(interval)
             return
 
@@ -62,11 +70,7 @@ class AnimationManager:
         elif path.endswith(".svg"):
             self.svg_renderer = QSvgRenderer(path)
             # Динамический FPS в зависимости от состояния
-            interval = 83 # 12 FPS по умолчанию
-            if self.current_state == "sleeping":
-                interval = 250 # 4 FPS
-            elif self.current_state in ["overheat", "shaking"]:
-                interval = 50  # 20 FPS
+            interval = int(1000 / self.current_fps)
             self.anim_timer.start(interval)
         else:
             # Статическая картинка (скин)
@@ -142,6 +146,11 @@ class AnimationManager:
             # Бешеная тряска + увеличение
             painter.scale(1.2, 1.2)
             painter.translate(random.randint(-4, 4), random.randint(-4, 4))
+        elif self.current_state == "shaking":
+            # Сильное встряхивание + динамический масштаб
+            scale = 1.0 + random.uniform(-0.08, 0.08)
+            painter.scale(scale, scale)
+            painter.translate(random.randint(-6, 6), random.randint(-6, 6))
         elif self.current_state == "stretching":
             # Растягивание
             painter.scale(0.8, 1.4)
@@ -150,6 +159,11 @@ class AnimationManager:
             scale_y = 1.0 + 0.1 * abs(math.sin(self.frame_counter * 0.8))
             painter.translate(0, 10 * (scale_y - 1.0))
             painter.scale(1.0, scale_y)
+        elif self.current_state == "playing":
+            # Покачивание из стороны в сторону и легкое подпрыгивание
+            angle = 8 * math.sin(self.frame_counter * 0.6)
+            painter.rotate(angle)
+            painter.translate(0, -abs(5 * math.sin(self.frame_counter * 0.8)))
         elif self.current_state == "thinking":
             # Наклон + покачивание
             painter.rotate(10 + 5 * math.sin(self.frame_counter * 0.2))
@@ -168,6 +182,14 @@ class AnimationManager:
             return
 
         self.current_state = state
+
+        # Установка FPS на основе состояния
+        if state == "sleeping":
+            self.current_fps = 4
+        elif state in ["overheat", "shaking"]:
+            self.current_fps = 20
+        else:
+            self.current_fps = 12
 
         # Если выбран скин, пробуем загрузить его SVG версию
         if self.skin != "default":

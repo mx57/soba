@@ -13,11 +13,11 @@ class TimerSystem(QObject):
         self.stretch_timer = QTimer(self)
         self.stretch_timer.timeout.connect(self.on_stretch_timeout)
 
-        # Таймер Pomodoro (работает с секундным интервалом)
+        # Таймер Pomodoro работает посекундно для обратного отсчета
         self.pomodoro_timer = QTimer(self)
         self.pomodoro_timer.timeout.connect(self.on_pomodoro_tick)
         self.pomodoro_state = "idle" # 'work', 'break', 'idle'
-        self.pomodoro_remaining = 0
+        self.pomodoro_remaining = 0  # оставшееся время в секундах
 
     def start_stretch_timer(self):
         interval = self.config.get("stretch_interval") * 60 * 1000 # в мс
@@ -34,26 +34,29 @@ class TimerSystem(QObject):
         self.pomodoro_state = mode
         minutes = self.config.get(f"pomodoro_{mode}")
         self.pomodoro_remaining = minutes * 60
-        self.pomodoro_timer.start(1000) # Секундный интервал
         self.pomodoro_tick.emit(self.pomodoro_remaining)
-
-    def on_pomodoro_tick(self):
-        if self.pomodoro_remaining > 0:
-            self.pomodoro_remaining -= 1
-            self.pomodoro_tick.emit(self.pomodoro_remaining)
-            if self.pomodoro_remaining <= 0:
-                self.on_pomodoro_timeout()
-
-    def on_pomodoro_timeout(self):
-        last_state = self.pomodoro_state
-        self.pomodoro_timer.stop()
-        self.pomodoro_state = "idle"
-        self.pomodoro_remaining = 0
-        self.pomodoro_finished.emit(last_state)
+        self.pomodoro_timer.start(1000) # Запуск раз в секунду
 
     def stop_pomodoro(self):
+        """Прерывает активную сессию Pomodoro."""
         if self.pomodoro_state != "idle":
             self.pomodoro_timer.stop()
             self.pomodoro_state = "idle"
             self.pomodoro_remaining = 0
             self.pomodoro_tick.emit(0)
+
+    def on_pomodoro_tick(self):
+        if self.pomodoro_remaining > 1:
+            self.pomodoro_remaining -= 1
+            self.pomodoro_tick.emit(self.pomodoro_remaining)
+        else:
+            last_state = self.pomodoro_state
+            self.pomodoro_timer.stop()
+            self.pomodoro_state = "idle"
+            self.pomodoro_remaining = 0
+            self.pomodoro_tick.emit(0)
+            self.pomodoro_finished.emit(last_state)
+
+    def on_pomodoro_timeout(self):
+        # Оставлен для совместимости, но логика теперь в on_pomodoro_tick
+        pass

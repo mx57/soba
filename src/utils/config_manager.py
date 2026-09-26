@@ -12,7 +12,9 @@ class ConfigManager:
         "volume": 70,
         "language": "ru",
         "skin": "default",
-        "opacity": 100
+        "opacity": 100,
+        "pet_size": 100,
+        "desktop_notifications": True
     }
 
     def __init__(self, config_path="settings.json"):
