@@ -13,7 +13,8 @@ class ConfigManager:
         "language": "ru",
         "skin": "default",
         "opacity": 100,
-        "pet_size": 100
+        "pet_size": 100,
+        "desktop_notifications": True
     }
 
     def __init__(self, config_path="settings.json"):

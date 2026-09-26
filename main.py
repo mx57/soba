@@ -30,8 +30,8 @@ def main():
     timer_system = TimerSystem(config)
     window.set_timer_system(timer_system)
 
-    timer_system.stretch_reminder.connect(lambda: window.show_message("Пора размяться! 🐾"))
-    timer_system.pomodoro_finished.connect(lambda mode: window.show_message(f"Pomodoro: {('отдых' if mode=='work' else 'работа')}! 🍎"))
+    timer_system.stretch_reminder.connect(lambda: window.show_notification("Время размяться", "Пора немного пошевелиться! 🐾"))
+    timer_system.pomodoro_finished.connect(lambda mode: window.show_notification("Таймер Pomodoro", f"Пора для {('отдыха' if mode=='work' else 'работы')}! 🍎"))
     timer_system.start_stretch_timer()
 
     input_manager = InputManager(window, db)
