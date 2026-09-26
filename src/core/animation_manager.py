@@ -146,6 +146,11 @@ class AnimationManager:
             # Бешеная тряска + увеличение
             painter.scale(1.2, 1.2)
             painter.translate(random.randint(-4, 4), random.randint(-4, 4))
+        elif self.current_state == "shaking":
+            # Сильное встряхивание + динамический масштаб
+            scale = 1.0 + random.uniform(-0.08, 0.08)
+            painter.scale(scale, scale)
+            painter.translate(random.randint(-6, 6), random.randint(-6, 6))
         elif self.current_state == "stretching":
             # Растягивание
             painter.scale(0.8, 1.4)
@@ -154,6 +159,11 @@ class AnimationManager:
             scale_y = 1.0 + 0.1 * abs(math.sin(self.frame_counter * 0.8))
             painter.translate(0, 10 * (scale_y - 1.0))
             painter.scale(1.0, scale_y)
+        elif self.current_state == "playing":
+            # Покачивание из стороны в сторону и легкое подпрыгивание
+            angle = 8 * math.sin(self.frame_counter * 0.6)
+            painter.rotate(angle)
+            painter.translate(0, -abs(5 * math.sin(self.frame_counter * 0.8)))
         elif self.current_state == "thinking":
             # Наклон + покачивание
             painter.rotate(10 + 5 * math.sin(self.frame_counter * 0.2))

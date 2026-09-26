@@ -30,6 +30,10 @@ class TrayMenu(QObject):
             self.window.timer_system.pomodoro_tick.connect(self.update_pomodoro_status)
             self.window.timer_system.pomodoro_finished.connect(self.on_pomodoro_finished)
 
+        # Подписка на сигнал смены режима лазерной указки
+        if hasattr(self.window, "input_manager") and self.window.input_manager:
+            self.window.input_manager.laser_mode_changed.connect(self.laser_action.setChecked)
+
     def setup_menu(self):
         # 1. Секция статуса Pomodoro
         self.status_action = QAction("Таймер не запущен", self)
@@ -59,10 +63,10 @@ class TrayMenu(QObject):
         self.menu.addSeparator()
 
         # Лазерная указка
-        laser_action = QAction("Лазерная указка 🔴", self)
-        laser_action.setCheckable(True)
-        laser_action.triggered.connect(self.toggle_laser)
-        self.menu.addAction(laser_action)
+        self.laser_action = QAction("Лазерная указка 🔴", self)
+        self.laser_action.setCheckable(True)
+        self.laser_action.triggered.connect(self.toggle_laser)
+        self.menu.addAction(self.laser_action)
 
         self.menu.addSeparator()
 
@@ -183,9 +187,10 @@ class TrayMenu(QObject):
     def show_settings(self, checked=False):
         dialog = SettingsDialog(self.window.config, self.window)
         if dialog.exec():
-            # Обновляем скин и прозрачность в реальном времени
+            # Обновляем скин, прозрачность и размер в реальном времени
             self.window.animation_manager.set_skin(self.window.config.get("skin"))
             self.window.set_opacity(self.window.config.get("opacity"))
+            self.window.set_pet_size(self.window.config.get("pet_size"))
             # Обновляем меню скинов
             self.update_skin_menu()
             # Обновляем режим "Поверх всех окон" в реальном времени

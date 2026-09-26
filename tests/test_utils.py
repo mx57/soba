@@ -58,6 +58,8 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(bool(flags & Qt.WindowStaysOnTopHint))
         self.assertFalse(config.get("always_on_top"))
 
+        window.close()
+
     def test_config_manager(self):
         config = ConfigManager(self.config_path)
         config.set("username", "TestUser")
@@ -356,6 +358,7 @@ class TestUtils(unittest.TestCase):
             self.assertNotIn("custom_todel_skin", CAT_SKINS)
             self.assertEqual(config.get("skin"), "default")
             self.assertNotIn("custom_todel_skin", config.get("custom_skins") or {})
+            dialog.close()
         finally:
             # Восстанавливаем моки гарантированно
             QMessageBox.question = original_question
@@ -481,6 +484,85 @@ class TestUtils(unittest.TestCase):
 
         db.close()
 
+    def test_procedural_animations_playing_and_shaking(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QLabel
+        from src.core.animation_manager import AnimationManager
+        from src.utils.paths import ANIMATIONS_DIR
+
+        app = QApplication.instance() or QApplication([])
+        label = QLabel()
+        config = ConfigManager(self.config_path)
+        am = AnimationManager(label, config)
+
+        # Подкладываем минимальный SVG-рендерер для вызова update_frame
+        test_svg_path = os.path.join(ANIMATIONS_DIR, "svg_skins", "cat_default.svg")
+        if not os.path.exists(test_svg_path):
+            os.makedirs(os.path.dirname(test_svg_path), exist_ok=True)
+            with open(test_svg_path, "w", encoding="utf-8") as f:
+                f.write("<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'></svg>")
+
+        am.set_animation(test_svg_path)
+
+        # Вызываем update_frame в состояниях playing и shaking
+        am.play_state("playing")
+        am.update_frame()
+        self.assertIsNotNone(label.pixmap())
+
+        am.play_state("shaking")
+        am.update_frame()
+        self.assertIsNotNone(label.pixmap())
+
+        am.anim_timer.stop()
+
+    def test_laser_mode_changed_signal(self):
+        mock_window = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.pos.return_value = QPoint(100, 100)
+        mock_window.cursor.return_value = mock_cursor
+
+        db = DataStore(self.db_path)
+        im = InputManager(mock_window, db)
+
+        signal_mock = MagicMock()
+        im.laser_mode_changed.connect(signal_mock)
+
+        im.toggle_laser_mode()
+        signal_mock.assert_called_with(True)
+
+        im.toggle_laser_mode()
+        signal_mock.assert_called_with(False)
+
+        db.close()
+
+    def test_pet_size_configuration(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        from src.ui.settings_dialog import SettingsDialog
+
+        app = QApplication.instance() or QApplication([])
+
+        config = ConfigManager(self.config_path)
+        self.assertEqual(config.get("pet_size"), 100)
+
+        # Тест PetWindow
+        window = PetWindow(config)
+        self.assertEqual(window.original_size.width(), 100)
+
+        window.set_pet_size(150)
+        self.assertEqual(window.original_size.width(), 150)
+        self.assertEqual(config.get("pet_size"), 150)
+
+        # Тест SettingsDialog
+        dialog = SettingsDialog(config)
+        self.assertEqual(dialog.size_slider.value(), 150)
+        dialog.size_slider.setValue(200)
+        dialog.save_settings()
+        self.assertEqual(config.get("pet_size"), 200)
+
+        window.close()
+        dialog.close()
+
     def test_stats_dialog_reset_ui_flow(self):
         from src.ui.stats_dialog import StatsDialog
         from PySide6.QtWidgets import QMessageBox, QApplication
@@ -512,6 +594,12 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(db.get_affection_points(), 0)
             QMessageBox.information.assert_called_once()
         finally:
+            if 'dialog' in locals() and hasattr(dialog, 'update_timer'):
+                dialog.update_timer.stop()
+            if 'dialog' in locals():
+                dialog.close()
+                dialog.deleteLater()
+            app.processEvents()
             QMessageBox.question = original_question
             QMessageBox.information = original_information
             db.close()
